@@ -43,6 +43,16 @@ describe("evaluateListing — end to end", () => {
     expect(result.score.rejectionReasons.some((r) => r.includes("Rejected repair categories"))).toBe(true);
   });
 
+  it("requires repair evidence when the search profile is repair-focused", () => {
+    const listing = normalizedListing({
+      description: "2016 Toyota Camry LE. Clean title, runs and drives, $9,500.",
+    });
+    const result = evaluateListing(evalInput({ listing, profile: { ...evalInput().profile, requireRepairEvidence: true } }));
+    expect(result.repairs.issues).toHaveLength(0);
+    expect(result.hardRejected).toBe(true);
+    expect(result.score.rejectionReasons.some((reason) => reason.includes("repair evidence"))).toBe(true);
+  });
+
   it("overpriced listing fails Gate A and scores lower", () => {
     const listing = normalizedListing({ price: 13500 }); // ratio .9
     const result = evaluateListing(evalInput({ listing }));

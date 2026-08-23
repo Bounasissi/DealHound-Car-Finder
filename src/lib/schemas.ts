@@ -16,6 +16,7 @@ export const profileInput = z.object({
   priceMax: z.number().min(0).nullable().optional().default(null),
   maxAskingRatio: z.number().min(0.1).max(1).default(0.7),
   requireCleanTitle: z.boolean().default(true),
+  requireRepairEvidence: z.boolean().default(true),
   allowedRepairCategories: z.array(z.enum(REPAIR_CATEGORIES)).default([]),
   rejectedRepairCategories: z.array(z.enum(REPAIR_CATEGORIES)).default([]),
   maxExpectedRepairs: z.number().min(0).nullable().optional().default(null),

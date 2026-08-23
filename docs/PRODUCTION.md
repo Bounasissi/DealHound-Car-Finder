@@ -6,11 +6,13 @@ DealHound's $0 path uses user-provided listing data, NHTSA/vPIC one-VIN lookups,
 
 Set `APP_ACCESS_TOKEN` or `APP_USERS_JSON`, `DATABASE_URL`, and keep `ALLOW_UNAUTHENTICATED_LOCAL=false` anywhere other than explicitly local development. Authentication is mandatory for production. The browser signs in at `/login` and receives a same-origin HttpOnly session cookie; API clients may use `Authorization: Bearer <token>`.
 
-Listings enter through pasted text, screenshots/notes, user-provided CSV, or an explicitly allowlisted JSON/plain-text URL feed. HTML pages and arbitrary hosts are rejected. Configure `ALLOWED_LISTING_URL_HOSTS` only for feeds you are authorized to access; otherwise paste the listing manually.
+Listings enter through pasted text, screenshots/notes, user-provided CSV, an explicitly allowlisted JSON/plain-text URL feed, or the optional licensed MarketCheck FSBO adapter. HTML pages and arbitrary hosts are rejected. Configure `ALLOWED_LISTING_URL_HOSTS` only for feeds you are authorized to access; otherwise paste the listing manually. When configured, `MARKETCHECK_SOURCE=facebook.com` narrows the MarketCheck search to Facebook-domain results exposed by your subscription; DealHound never logs into Facebook or scrapes Marketplace directly.
 
 Title states are intentionally conservative: seller claims remain `SELLER_CLAIMS_CLEAN`, a user-recorded document review is `DOCUMENT_REVIEWED`, and only authoritative evidence may produce `HISTORY_CLEAN` or `VERIFIED`. A missing history provider is not an error on the $0 path; it means manual verification is required.
 
 Valuation uses three free-compatible options: comparable listings (`comps`), a user-entered KBB/JD Power/private-party value (`manual-kbb-entry`), or an optional separately approved licensed adapter. Every saved valuation stores its provider and provenance note.
+
+For automated discovery, set `MARKETCHECK_API_KEY` and sync an active search profile from `/profiles`. The adapter applies ZIP/radius, make/model, year, mileage, price, and (when required) MarketCheck's `carfax_clean_title` filter before DealHound's own scoring and verification gates. MarketCheck's private-party feed is a licensed external dependency; it does not by itself prove a title state inside DealHound.
 
 Alerts are always persisted to the in-app inbox. `ALERT_WEBHOOK_URL` is optional and can point to a free Discord webhook; delivery failures are recorded and retried without changing the deal decision.
 

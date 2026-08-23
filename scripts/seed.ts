@@ -140,6 +140,7 @@ async function main() {
       priceMax: 15000,
       maxAskingRatio: config.gateARatio,
       requireCleanTitle: true,
+      requireRepairEvidence: true,
       allowedRepairCategories: [],
       rejectedRepairCategories: ["ENGINE_MAJOR", "TRANSMISSION_MAJOR", "RUST_FRAME_FLOOD_FIRE"],
       maxExpectedRepairs: 4000,

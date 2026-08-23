@@ -106,7 +106,12 @@ export function evaluateListing(input: DealEvaluationInput, deps: PipelineDeps =
     );
   }
 
-  const hardRejected = hardReject.rejected || !cleanTitleOk;
+  const repairEvidenceOk = !profile.requireRepairEvidence || repairs.issues.length > 0;
+  if (!repairEvidenceOk) {
+    score.rejectionReasons.unshift("Profile requires repair evidence; no repair findings were disclosed or confirmed");
+  }
+
+  const hardRejected = hardReject.rejected || !cleanTitleOk || !repairEvidenceOk;
 
   // --- Suggested workflow stage -----------------------------------------------------------------
   const suggestedStage = suggestStageFor(titleState, listing.vin, Boolean(historyCheck));

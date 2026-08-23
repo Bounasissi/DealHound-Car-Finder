@@ -129,6 +129,7 @@ export function profileRowToDomain(row: typeof searchProfiles.$inferSelect): Sea
     priceMax: row.priceMax !== null ? Number(row.priceMax) : null,
     maxAskingRatio: Number(row.maxAskingRatio),
     requireCleanTitle: row.requireCleanTitle,
+    requireRepairEvidence: row.requireRepairEvidence,
     allowedRepairCategories: row.allowedRepairCategories as RepairCategory[],
     rejectedRepairCategories: row.rejectedRepairCategories as RepairCategory[],
     maxExpectedRepairs: row.maxExpectedRepairs !== null ? Number(row.maxExpectedRepairs) : null,
@@ -171,6 +172,7 @@ export async function createProfile(p: SearchProfile): Promise<SearchProfile> {
       priceMax: p.priceMax !== null ? String(p.priceMax) : null,
       maxAskingRatio: String(p.maxAskingRatio),
       requireCleanTitle: p.requireCleanTitle,
+      requireRepairEvidence: p.requireRepairEvidence,
       allowedRepairCategories: p.allowedRepairCategories,
       rejectedRepairCategories: p.rejectedRepairCategories,
       maxExpectedRepairs: p.maxExpectedRepairs !== null ? String(p.maxExpectedRepairs) : null,
@@ -184,7 +186,7 @@ export async function createProfile(p: SearchProfile): Promise<SearchProfile> {
 
 export async function updateProfile(id: string, patch: Partial<SearchProfile>): Promise<SearchProfile | null> {
   const values: Record<string, unknown> = { updatedAt: new Date() };
-  for (const key of ["name", "zip", "radiusMiles", "make", "model", "trim", "yearMin", "yearMax", "mileageMax", "requireCleanTitle", "allowedRepairCategories", "rejectedRepairCategories", "maxFraudRiskScore", "active"] as const) {
+  for (const key of ["name", "zip", "radiusMiles", "make", "model", "trim", "yearMin", "yearMax", "mileageMax", "requireCleanTitle", "requireRepairEvidence", "allowedRepairCategories", "rejectedRepairCategories", "maxFraudRiskScore", "active"] as const) {
     if (patch[key] !== undefined) values[key] = patch[key];
   }
   for (const key of ["priceMin", "priceMax", "maxAskingRatio", "maxExpectedRepairs", "minDealMargin"] as const) {

@@ -29,6 +29,7 @@ export function defaultProfile(overrides: Partial<SearchProfile> = {}): SearchPr
     priceMax: null,
     maxAskingRatio: 0.7,
     requireCleanTitle: true,
+    requireRepairEvidence: true,
     allowedRepairCategories: [],
     rejectedRepairCategories: ["ENGINE_MAJOR", "TRANSMISSION_MAJOR", "RUST_FRAME_FLOOD_FIRE"],
     maxExpectedRepairs: null,

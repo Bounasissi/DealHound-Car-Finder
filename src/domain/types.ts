@@ -387,6 +387,8 @@ export interface SearchProfile {
   /** Gate A: max asking/reference ratio. Default 0.70. */
   maxAskingRatio: number;
   requireCleanTitle: boolean;
+  /** Only surface/evaluate listings with explicit repair evidence. */
+  requireRepairEvidence: boolean;
   allowedRepairCategories: RepairCategory[];
   rejectedRepairCategories: RepairCategory[];
   maxExpectedRepairs: number | null;

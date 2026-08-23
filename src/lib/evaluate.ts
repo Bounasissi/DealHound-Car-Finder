@@ -6,12 +6,17 @@
 import { loadConfig } from "@/domain/config";
 import { buildAlertPayload, evaluateAlertRule } from "@/domain/alerts";
 import { evaluateListing } from "@/domain/pipeline";
+import { deriveTitleState } from "@/domain/title";
+import { configuredLicensedKbbProvider } from "@/domain/valuation";
 import type { DealEvaluation, SearchProfile } from "@/domain/types";
+import { historyProvider } from "@/sources/history";
 import { decodeVin } from "@/domain/vin";
 import { log } from "./logger";
 import { deliverAlert } from "./notifications";
 import {
+  addHistoryCheck,
   countDuplicates,
+  addValuation,
   getCachedVin,
   getListing,
   latestHistoryCheck,
@@ -58,9 +63,40 @@ export async function evaluateAndStore(
     }
   }
 
-  const [valuationResults, historyCheck, userIssues, duplicateCount] = await Promise.all([
-    listValuations(listingId),
-    latestHistoryCheck(listingId),
+  let historyCheck = await latestHistoryCheck(listingId);
+  if (!historyCheck && listing.vin && historyProvider.isConfigured()) {
+    try {
+      historyCheck = await historyProvider.check(listing.vin);
+      await addHistoryCheck(listingId, historyCheck);
+      await patchListing(listingId, { titleState: deriveTitleState(listing.titleClaims, historyCheck) });
+    } catch (error) {
+      log.warn("history.provider_unavailable", {
+        listingId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  let valuationResults = await listValuations(listingId);
+  if (valuationResults.length === 0) {
+    const provider = configuredLicensedKbbProvider();
+    if (provider.isConfigured()) {
+      try {
+        const automaticValuation = await provider.getReferenceValue({ listing });
+        if (automaticValuation) {
+          await addValuation(listingId, automaticValuation);
+          valuationResults = [automaticValuation];
+        }
+      } catch (error) {
+        log.warn("valuation.provider_unavailable", {
+          listingId,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  const [userIssues, duplicateCount] = await Promise.all([
     listUserIssues(listingId),
     countDuplicates(listing.dedupKey, listingId),
   ]);

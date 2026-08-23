@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MarketCheckFsboSource,
   ManualIngestionSource,
   type ListingSource,
   buildManualListing,
@@ -57,6 +58,76 @@ describe("ManualIngestionSource", () => {
     expect(s.isConfigured()).toBe(true);
     const listings = await s.fetchListings(defaultProfile());
     expect(listings).toEqual([]); // deliberate: no scraping
+  });
+});
+
+describe("MarketCheckFsboSource", () => {
+  it("queries private-party inventory with profile and clean-title filters", async () => {
+    let requestedUrl = "";
+    const source = new MarketCheckFsboSource(
+      { apiKey: "marketcheck-test-key", source: "facebook.com" },
+      async (input) => {
+        requestedUrl = String(input);
+        return new Response(JSON.stringify({
+          listings: [
+            {
+              id: "mc-1",
+              vin: "1HGCM82633A004352",
+              heading: "2014 Honda Accord EX needs tires",
+              price: 6200,
+              miles: 118000,
+              vdp_url: "https://www.facebook.com/marketplace/item/123",
+              source: "facebook.com",
+              seller_type: "fsbo",
+              first_seen_at_source_date: "2026-08-22",
+              build: { year: 2014, make: "Honda", model: "Accord", trim: "EX" },
+              dist: 18,
+            },
+          ],
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    );
+
+    const listings = await source.fetchListings(defaultProfile({
+      zip: "08054",
+      radiusMiles: 75,
+      make: "Honda",
+      model: "Accord",
+      yearMin: 2012,
+      yearMax: 2018,
+      mileageMax: 160000,
+    }));
+
+    const params = new URL(requestedUrl).searchParams;
+    expect(source.isConfigured()).toBe(true);
+    expect(params.get("zip")).toBe("08054");
+    expect(params.get("radius")).toBe("75");
+    expect(params.get("make")).toBe("Honda");
+    expect(params.get("model")).toBe("Accord");
+    expect(params.get("year_range")).toBe("2012-2018");
+    expect(params.get("miles_range")).toBe("0-160000");
+    expect(params.get("carfax_clean_title")).toBe("true");
+    expect(params.get("source")).toBe("facebook.com");
+    expect(listings).toHaveLength(1);
+    expect(listings[0]).toMatchObject({
+      sourceId: "marketcheck-fsbo",
+      sourceKind: "inventory-api",
+      sourceListingId: "mc-1",
+      url: "https://www.facebook.com/marketplace/item/123",
+      price: 6200,
+      mileage: 118000,
+      year: 2014,
+      make: "Honda",
+      model: "Accord",
+    });
+  });
+
+  it("stays disabled without an API key and reports provider errors", async () => {
+    const disabled = new MarketCheckFsboSource({ apiKey: "" }, async () => new Response("{}", { status: 200 }));
+    expect(disabled.isConfigured()).toBe(false);
+
+    const failing = new MarketCheckFsboSource({ apiKey: "key" }, async () => new Response("nope", { status: 401 }));
+    await expect(failing.fetchListings(defaultProfile())).rejects.toThrow(/MarketCheck returned HTTP 401/);
   });
 });
 

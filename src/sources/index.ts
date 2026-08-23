@@ -5,12 +5,18 @@
  *  - ManualIngestionSource: Facebook Marketplace user-assisted ingestion
  *    (screenshots/copied text/URLs). No scraping — the user supplies content.
  *  - CsvListingSource: user-provided CSV import. No remote access is implied.
+ *  - MarketCheckFsboSource: optional licensed private-party feed. It can be
+ *    narrowed to a source domain such as facebook.com through configuration;
+ *    it never logs into Facebook or crawls Marketplace directly.
  *
- * Extensibility: authorized Craigslist/OfferUp/auction adapters implement the
- * same interface and register themselves — no core changes required.
+ * Extensibility: other authorized listing adapters implement the same interface
+ * and register themselves — no scoring or persistence changes required.
  */
 import { parseListingText } from "@/lib/parser";
 import type { ListingSourceKind, RawListing, SearchProfile } from "@/domain/types";
+import { MarketCheckFsboSource } from "./marketcheck";
+
+export { MarketCheckFsboSource, buildMarketCheckSearchParams, marketCheckListingToRaw } from "./marketcheck";
 
 export interface ListingSource {
   /** Stable source id used on every listing from this source. */
@@ -313,4 +319,12 @@ sourceRegistry.register(new ManualIngestionSource());
 sourceRegistry.register(new CsvListingSource());
 if (process.env.INVENTORY_API_URL && process.env.INVENTORY_API_KEY) {
   sourceRegistry.register(new HttpInventoryAdapter({ baseUrl: process.env.INVENTORY_API_URL, apiKey: process.env.INVENTORY_API_KEY }));
+}
+if (process.env.MARKETCHECK_API_KEY) {
+  sourceRegistry.register(new MarketCheckFsboSource({
+    apiKey: process.env.MARKETCHECK_API_KEY,
+    baseUrl: process.env.MARKETCHECK_API_BASE_URL,
+    source: process.env.MARKETCHECK_SOURCE ?? "facebook.com",
+    timeoutMs: Number(process.env.MARKETCHECK_TIMEOUT_MS ?? 8000),
+  }));
 }

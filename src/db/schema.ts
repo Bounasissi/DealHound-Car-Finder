@@ -10,6 +10,56 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").notNull().default("USER"),
+  status: text("status").notNull().default("ACTIVE"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ emailUnique: uniqueIndex("users_email_unique").on(table.email) }));
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ tokenUnique: uniqueIndex("sessions_token_hash_unique").on(table.tokenHash) }));
+
+export const invitations = pgTable("invitations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("USER"),
+  tokenHash: text("token_hash").notNull(),
+  invitedBy: text("invited_by").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ tokenUnique: uniqueIndex("invitations_token_hash_unique").on(table.tokenHash) }));
+
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ tokenUnique: uniqueIndex("password_reset_token_hash_unique").on(table.tokenHash) }));
+
+export const userPreferences = pgTable("user_preferences", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  minimumScore: integer("minimum_score").notNull().default(75),
+  minimumMargin: numeric("minimum_margin", { precision: 12, scale: 2 }).notNull().default("2000"),
+  deliveryMode: text("delivery_mode").notNull().default("IMMEDIATE"),
+  quietHoursStart: integer("quiet_hours_start"),
+  quietHoursEnd: integer("quiet_hours_end"),
+  email: text("email"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const searchProfiles = pgTable("search_profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
   ownerId: text("owner_id").notNull().default("primary"),
@@ -26,6 +76,7 @@ export const searchProfiles = pgTable("search_profiles", {
   priceMax: numeric("price_max", { precision: 10, scale: 2 }),
   maxAskingRatio: numeric("max_asking_ratio", { precision: 5, scale: 4 }).notNull().default("0.7000"),
   requireCleanTitle: boolean("require_clean_title").notNull().default(true),
+  requireRepairEvidence: boolean("require_repair_evidence").notNull().default(true),
   allowedRepairCategories: jsonb("allowed_repair_categories").$type<string[]>().notNull().default([]),
   rejectedRepairCategories: jsonb("rejected_repair_categories").$type<string[]>().notNull().default([]),
   maxExpectedRepairs: numeric("max_expected_repairs", { precision: 10, scale: 2 }),

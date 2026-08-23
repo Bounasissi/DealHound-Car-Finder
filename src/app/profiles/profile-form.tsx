@@ -21,6 +21,7 @@ export default function ProfileForm() {
     priceMax: "",
     maxAskingRatio: "0.70",
     requireCleanTitle: true,
+    requireRepairEvidence: true,
     minDealMargin: "2000",
     maxFraudRiskScore: "40",
     rejected: ["ENGINE_MAJOR", "TRANSMISSION_MAJOR", "RUST_FRAME_FLOOD_FIRE"] as string[],
@@ -49,6 +50,7 @@ export default function ProfileForm() {
           priceMax: form.priceMax ? Number(form.priceMax.replace(/[^0-9]/g, "")) : null,
           maxAskingRatio: Number(form.maxAskingRatio),
           requireCleanTitle: form.requireCleanTitle,
+          requireRepairEvidence: form.requireRepairEvidence,
           allowedRepairCategories: [],
           rejectedRepairCategories: form.rejected,
           maxExpectedRepairs: null,
@@ -139,6 +141,12 @@ export default function ProfileForm() {
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.requireCleanTitle} onChange={(e) => setForm({ ...form, requireCleanTitle: e.target.checked })} />
             Require clean title (history-checked)
+          </label>
+        </div>
+        <div className="flex items-end pb-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.requireRepairEvidence} onChange={(e) => setForm({ ...form, requireRepairEvidence: e.target.checked })} />
+            Require repair evidence (needs work)
           </label>
         </div>
       </div>
