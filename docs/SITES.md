@@ -9,14 +9,6 @@ ChatGPT sign-in, user-provided paste/CSV ingestion, manual title review,
 comparable/manual valuation, NHTSA/vPIC VIN decoding, repair evidence, outcome
 tracking, and persisted in-app alerts.
 
-The Site is currently owner-only because the Sites account reports external
-visitor invitations disabled. Once external visitor invitations are enabled,
-apply the selected-user email allowlist supplied for this deployment:
-
-- dombounasissi@gmail.com
-- dbounasissi@gmail.com
-- vincenzobounasissi@gmail.com
-- maroselli88@gmail.com
-- murtymergi@gmail.com
-
-Do not make this private tool public as an access workaround.
+The Site is intentionally published with public URL visibility per the current
+product decision. Anyone with the URL can reach the hosted application; the
+Site does not depend on external visitor invitations or an email allowlist.
