@@ -1,12 +1,7 @@
-/**
- * History provider abstraction (NMVTIS / approved providers).
- * Without credentials, a clearly-labeled deterministic mock serves the pipeline
- * so title logic is fully exercisable. With credentials, wire the real API in
- * `check()` — same interface, no core changes.
- */
-import type { HistoryCheck } from "@/domain/types";
+/** Approved vehicle-history provider boundary. Production never fabricates title evidence. */
+import { loadConfig } from "@/domain/config";
+import type { HistoryCheck, TitleState } from "@/domain/types";
 import { normalizeBrands } from "@/domain/title";
-import { createHash } from "node:crypto";
 
 export interface HistoryProvider {
   readonly id: string;
@@ -15,51 +10,105 @@ export interface HistoryProvider {
   check(vin: string): Promise<HistoryCheck>;
 }
 
-export interface NmvtisConfig {
-  apiKey: string;
-  baseUrl: string;
+export class HistoryProviderUnavailableError extends Error {
+  readonly code = "HISTORY_PROVIDER_UNAVAILABLE";
+  constructor(message: string) {
+    super(message);
+    this.name = "HistoryProviderUnavailableError";
+  }
 }
 
-/**
- * Production-shaped NMVTIS mock. Deterministic per VIN: the same VIN always
- * yields the same result, so tests and demos are stable. Results are labeled
- * provider "nmvtis-mock" everywhere they surface.
- */
-export class NmvtisMockProvider implements HistoryProvider {
-  readonly id = "nmvtis-mock";
-  readonly label = "NMVTIS-approved history (MOCK)";
+interface ProviderResponse {
+  provider?: string;
+  titleState?: TitleState;
+  brands?: string[];
+  accidentCount?: number | null;
+  odometerReadings?: number[];
+  raw?: unknown;
+}
 
-  constructor(private config: NmvtisConfig | null) {}
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`History provider timed out after ${ms}ms`)), ms)),
+  ]);
+}
+
+/** Generic adapter for an approved vendor endpoint using a stable JSON contract. */
+export class HttpHistoryProvider implements HistoryProvider {
+  readonly id: string;
+  readonly label: string;
+
+  constructor(
+    private readonly url: string,
+    private readonly apiKey: string,
+    private readonly timeoutMs: number,
+    id = "approved-history-provider",
+    label = "Approved vehicle-history provider",
+  ) {
+    this.id = id;
+    this.label = label;
+  }
 
   isConfigured(): boolean {
-    return this.config !== null && this.config.apiKey.length > 0;
+    return Boolean(this.url && this.apiKey);
   }
 
   async check(vin: string): Promise<HistoryCheck> {
-    if (this.isConfigured()) {
-      // Wire point for a real NMVTIS-approved provider (see docs/providers.md).
-      throw new Error("Live NMVTIS provider not wired; provide adapter implementation");
+    if (!this.isConfigured()) {
+      throw new HistoryProviderUnavailableError(
+        "No external history provider is configured. Record a seller claim or manual document review in the title section, or configure an approved provider.",
+      );
     }
-    const h = createHash("sha256").update(`dealhound-history:${vin}`).digest();
-    const bucket = h[0] % 10;
-    const brands: string[] =
-      bucket === 0 ? ["SALVAGE"] : bucket === 1 ? ["FLOOD"] : bucket === 2 ? ["REBUILT"] : [];
-    const accidentCount = bucket >= 8 ? 1 : 0;
-    return {
-      provider: this.id,
-      vin,
-      titleState: "HISTORY_CLEAN",
-      brands: normalizeBrands(brands),
-      accidentCount,
-      odometerReadings: [40_000 + (h[1] % 30) * 1000, 80_000 + (h[2] % 40) * 1000],
-      raw: { mock: true, bucket },
-      checkedAt: new Date().toISOString(),
-    };
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await withTimeout(
+          fetch(`${this.url.replace(/\/$/, "")}/vins/${encodeURIComponent(vin)}`, {
+            headers: { accept: "application/json", authorization: `Bearer ${this.apiKey}` },
+            cache: "no-store",
+          }),
+          this.timeoutMs,
+        );
+        if (!response.ok) throw new Error(`History provider returned HTTP ${response.status}`);
+        const body = (await response.json()) as ProviderResponse;
+        return {
+          provider: body.provider ?? this.id,
+          vin,
+          titleState: body.titleState ?? "UNKNOWN",
+          brands: normalizeBrands(body.brands ?? []),
+          accidentCount: body.accidentCount ?? null,
+          odometerReadings: body.odometerReadings ?? [],
+          raw: body.raw ?? body,
+          checkedAt: new Date().toISOString(),
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw new HistoryProviderUnavailableError(
+      `Approved history provider failed after retry: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+    );
   }
 }
 
-export const historyProvider = new NmvtisMockProvider(
-  process.env.NMVTIS_API_KEY
-    ? { apiKey: process.env.NMVTIS_API_KEY, baseUrl: process.env.NMVTIS_BASE_URL ?? "https://example.invalid" }
-    : null,
+const config = loadConfig();
+export const historyProvider = new HttpHistoryProvider(
+  config.historyProviderUrl,
+  config.historyProviderApiKey,
+  config.historyTimeoutMs,
 );
+
+/** Explicit seed fixture helper; never used by the runtime provider. */
+export function seedHistoryCheck(vin: string, brands: string[] = []): HistoryCheck {
+  return {
+    provider: "seed-fixture",
+    vin,
+    titleState: "HISTORY_CLEAN",
+    brands: normalizeBrands(brands),
+    accidentCount: null,
+    odometerReadings: [],
+    raw: { fixture: true },
+    checkedAt: new Date().toISOString(),
+  };
+}

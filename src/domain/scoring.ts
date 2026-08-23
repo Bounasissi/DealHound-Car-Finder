@@ -15,6 +15,8 @@ import type {
 } from "./types";
 import { TITLE_STATE_RANK } from "./types";
 
+export const DEAL_SCORE_FORMULA_VERSION = "deal-score-v1";
+
 export interface ScoringInput {
   economics: DealEconomics | null;
   repairs: RepairEstimateSummary;
@@ -73,6 +75,7 @@ export function computeDealScore(input: ScoringInput): DealScore {
       `Expected repairs $${repairs.totalExpected.toLocaleString()} exceed max $${profile.maxExpectedRepairs!.toLocaleString()}`,
     );
   }
+  if (repairs.unknownCosts) rejectionReasons.push(`Repair costs unknown: ${repairs.unknownReason}`);
 
   // --- Factor: discount (asking vs reference) ------------------------------
   let discountValue = 0;

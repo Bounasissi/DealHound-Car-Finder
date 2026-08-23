@@ -18,6 +18,9 @@ export function evaluateAlertRule(
   const failed: string[] = [];
   const { score, economics, repairs, titleState } = evaluation;
 
+  if (evaluation.hardRejected) failed.push("evaluation is hard-rejected");
+  if (repairs.unknownCosts) failed.push("repair costs are unknown");
+
   if (score.total < rule.minScore) failed.push(`score ${score.total} < ${rule.minScore}`);
   if (!economics || economics.askingRatio === null) {
     failed.push("no valuation/asking ratio");

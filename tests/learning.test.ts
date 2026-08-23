@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { aggregateCalibration, computePredictionError } from "@/domain/learning";
+import { aggregateCalibration, computePredictionError, type OutcomeRecord } from "@/domain/learning";
 import { evaluateListing } from "@/domain/pipeline";
 import { evalInput } from "./fixtures";
-import type { DealEvaluation, OutcomeRecord, PurchaseOutcome } from "@/domain/types";
+import type { DealEvaluation, PurchaseOutcome } from "@/domain/types";
 
 function evaluation(): DealEvaluation {
   return evaluateListing(evalInput());

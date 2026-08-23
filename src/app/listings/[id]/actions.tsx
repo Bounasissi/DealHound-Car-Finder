@@ -5,7 +5,7 @@ import { useState } from "react";
 import { OUTCOME_TYPES, REPAIR_CATEGORIES, WORKFLOW_STAGES } from "@/domain/types";
 
 interface DetailActionsProps {
-  slot?: "valuation" | "history" | "issues" | "outcome";
+  slot?: "valuation" | "history" | "title" | "issues" | "outcome";
   listingId: string;
   stage?: string;
   watched?: boolean;
@@ -23,6 +23,7 @@ const btnSecondary = "rounded-md border border-zinc-300 px-3 py-2 text-sm hover:
 async function callApi(url: string, method: string, body?: unknown) {
   const res = await fetch(url, {
     method,
+    credentials: "same-origin",
     headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
@@ -42,6 +43,8 @@ export default function DetailActions(props: DetailActionsProps) {
       return <ValuationForm listingId={props.listingId} />;
     case "history":
       return <HistoryRun listingId={props.listingId} hasVin={props.hasVin ?? false} />;
+    case "title":
+      return <TitleReviewForm listingId={props.listingId} />;
     case "issues":
       return <IssueForm listingId={props.listingId} />;
     case "outcome":
@@ -233,11 +236,44 @@ function HistoryRun({ listingId, hasVin }: { listingId: string; hasVin: boolean 
   );
 }
 
+function TitleReviewForm({ listingId }: { listingId: string }) {
+  const router = useRouter();
+  const [state, setState] = useState("DOCUMENT_REVIEWED");
+  const [evidenceNote, setEvidenceNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setError(null);
+    try {
+      await callApi(`/api/listings/${listingId}/title-verification`, "POST", { state, evidenceNote });
+      setEvidenceNote(""); router.refresh();
+    } catch (err) { setError(err instanceof Error ? err.message : String(err)); }
+    finally { setBusy(false); }
+  }
+  return <form onSubmit={submit} className="mt-3 space-y-2 border-t border-zinc-100 pt-3">
+    <p className="text-xs text-zinc-500">Manual review records what you observed; it does not turn a seller claim into authoritative history.</p>
+    <div className="grid gap-2 sm:grid-cols-[auto_1fr_auto] sm:items-end">
+      <div><label className={label}>Status</label><select value={state} onChange={(e) => setState(e.target.value)} className={input}>
+        <option value="DOCUMENT_REVIEWED">Document reviewed</option><option value="SELLER_CLAIMS_CLEAN">Seller claims clean</option><option value="UNKNOWN">Verification incomplete</option>
+      </select></div>
+      <div><label className={label}>Evidence note</label><input required value={evidenceNote} onChange={(e) => setEvidenceNote(e.target.value)} placeholder="e.g. seller sent photo of NJ title; not independently verified" className={input} /></div>
+      <button type="submit" disabled={busy} className={btn}>{busy ? "Saving…" : "Save title note"}</button>
+    </div>
+    <ErrorNote error={error} />
+  </form>;
+}
+
 function IssueForm({ listingId }: { listingId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    category: (typeof REPAIR_CATEGORIES)[number];
+    description: string;
+    severity: string;
+    estimateExpected: string;
+    majorRisk: boolean;
+  }>({
     category: REPAIR_CATEGORIES[0],
     description: "",
     severity: "MODERATE",
@@ -341,7 +377,13 @@ function OutcomeForm({ listingId }: { listingId: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    outcome: (typeof OUTCOME_TYPES)[number];
+    notes: string;
+    actualRepairs: string;
+    actualFinishedValue: string;
+    soldPrice: string;
+  }>({
     outcome: OUTCOME_TYPES[0],
     notes: "",
     actualRepairs: "",

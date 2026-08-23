@@ -276,5 +276,7 @@ export function summarizeRepairs(
     totalHigh,
     hasMajorRisk: issues.some((i) => i.majorRisk),
     rejectedCategories: [...new Set(issues.filter((i) => rejectedSet.has(i.category)).map((i) => i.category))],
+    unknownCosts: issues.length === 0,
+    unknownReason: issues.length === 0 ? "No repair findings were disclosed or confirmed" : null,
   };
 }

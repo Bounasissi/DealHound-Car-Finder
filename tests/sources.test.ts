@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   ManualIngestionSource,
-  MockInventoryAdapter,
+  type ListingSource,
   buildManualListing,
   extractMarketplaceId,
   matchesProfile,
+  parseCsvListings,
   sourceRegistry,
 } from "@/sources";
+import type { RawListing, SearchProfile } from "@/domain/types";
 import { defaultProfile, rawListing } from "./fixtures";
 
 describe("buildManualListing (Facebook Marketplace user-assisted ingestion)", () => {
@@ -58,15 +60,27 @@ describe("ManualIngestionSource", () => {
   });
 });
 
-describe("MockInventoryAdapter", () => {
+describe("test-only inventory fixture adapter", () => {
   const fixtures = [
     rawListing({ price: 9000, mileage: 90000, year: 2016, make: "toyota", model: "Camry" }),
     rawListing({ price: 20000, mileage: 30000, year: 2020, make: "honda", model: "Accord" }),
     rawListing({ price: 6000, mileage: 180000, year: 2012, make: "ford", model: "Fusion" }),
   ];
 
+  class TestFixtureAdapter implements ListingSource {
+    readonly id = "test-fixture";
+    readonly label = "test fixture";
+    readonly kind = "inventory-api" as const;
+    constructor(private config: { baseUrl: string; apiKey: string } | null, private rows: RawListing[]) {}
+    isConfigured() { return this.config !== null && this.config.apiKey.length > 0; }
+    async fetchListings(profile: SearchProfile) {
+      if (this.isConfigured()) throw new Error("Live inventory API not wired; test fixture cannot make network calls");
+      return this.rows.filter((f) => matchesProfile(f, profile));
+    }
+  }
+
   it("serves fixtures when unconfigured and filters by profile", async () => {
-    const adapter = new MockInventoryAdapter(null, fixtures);
+    const adapter = new TestFixtureAdapter(null, fixtures);
     expect(adapter.isConfigured()).toBe(false);
     const results = await adapter.fetchListings(
       defaultProfile({ priceMax: 12000, yearMin: 2014, make: "Toyota" }),
@@ -76,9 +90,18 @@ describe("MockInventoryAdapter", () => {
   });
 
   it("throws a clear error when credentials exist but adapter not wired", async () => {
-    const adapter = new MockInventoryAdapter({ baseUrl: "https://api.example.com", apiKey: "k" }, fixtures);
+    const adapter = new TestFixtureAdapter({ baseUrl: "https://api.example.com", apiKey: "k" }, fixtures);
     expect(adapter.isConfigured()).toBe(true);
     await expect(adapter.fetchListings(defaultProfile())).rejects.toThrow(/not wired/);
+  });
+});
+
+describe("free import paths", () => {
+  it("parses a user-provided CSV without network access", () => {
+    const rows = parseCsvListings('title,price,mileage,year,make,model,location\n"2015 Honda Accord",11500,98000,2015,Honda,Accord,"Mount Laurel, NJ"');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].overrides?.price).toBe(11500);
+    expect(rows[0].overrides?.location).toBe("Mount Laurel, NJ");
   });
 });
 

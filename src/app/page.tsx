@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { latestEvaluation, listListings } from "@/lib/repo";
+import { getActiveProfile } from "@/lib/evaluate";
 import { CLASS_STYLES, money, pct } from "@/lib/format";
+import { withServerAuth } from "@/lib/server-auth";
 import type { DealEvaluation } from "@/domain/types";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +23,10 @@ interface InboxItem {
 }
 
 export default async function DealInbox() {
-  const listings = await listListings();
-  const items: InboxItem[] = await Promise.all(
-    listings.map(async (l) => {
+  return withServerAuth(async () => {
+    const listings = await listListings({ profile: (await getActiveProfile()) ?? undefined, sort: "recent" });
+    const items: InboxItem[] = await Promise.all(
+      listings.map(async (l) => {
       const ev = await latestEvaluation(l.id!);
       const headline = [l.vehicle.year, l.vehicle.make, l.vehicle.model].filter(Boolean).join(" ") || l.title || "Untitled listing";
       return {
@@ -35,22 +38,22 @@ export default async function DealInbox() {
         askingRatio: ev?.economics?.askingRatio ?? null,
         expectedMargin: ev?.economics?.expectedMargin ?? null,
         titleState: l.titleState,
-        stage: l.workflowStage,
+        stage: l.workflowStage ?? "FOUND",
         watched: false,
         hardRejected: ev?.hardRejected ?? false,
         evaluation: ev,
       };
-    }),
-  );
+      }),
+    );
 
-  items.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    items.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
 
-  const counts = items.reduce<Record<string, number>>((acc, i) => {
-    if (i.scoreClass) acc[i.scoreClass] = (acc[i.scoreClass] ?? 0) + 1;
-    return acc;
-  }, {});
+    const counts = items.reduce<Record<string, number>>((acc, i) => {
+      if (i.scoreClass) acc[i.scoreClass] = (acc[i.scoreClass] ?? 0) + 1;
+      return acc;
+    }, {});
 
-  return (
+    return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Deal Inbox</h1>
@@ -115,5 +118,6 @@ export default async function DealInbox() {
         </ul>
       )}
     </div>
-  );
+    );
+  });
 }

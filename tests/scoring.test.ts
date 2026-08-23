@@ -5,12 +5,12 @@ import { summarizeRepairs, estimateIssue } from "@/domain/repairs";
 import { classifyScore, computeDealScore } from "@/domain/scoring";
 import { buildValuationBundle } from "@/domain/valuation";
 import { assessFraud } from "@/domain/fraud";
-import { cleanHistory, defaultProfile, evalInput, manualValuation, normalizedListing, salvageHistory } from "./fixtures";
+import { defaultProfile, manualValuation, normalizedListing } from "./fixtures";
 
 function scoreFor(overrides: Parameters<typeof computeDealScore>[0] extends never ? never : Partial<Parameters<typeof computeDealScore>[0]> = {}) {
   const listing = overrides.repairs !== undefined ? normalizedListing() : normalizedListing();
   const valuation = buildValuationBundle([manualValuation(15000)], 8500);
-  const repairs = overrides.repairs ?? summarizeRepairs([]);
+  const repairs = overrides.repairs ?? summarizeRepairs([estimateIssue("OTHER_MAINTENANCE", "LOW")]);
   const economics = computeDealEconomics({ askingPrice: 8500, valuation, repairs, config: loadConfig() });
   const fraud = assessFraud({ listing, valuation, vinMismatch: false, duplicateCount: 0, config: loadConfig() });
   return computeDealScore({

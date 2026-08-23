@@ -2,7 +2,7 @@
  * Seller question generation from missing data and detected issues.
  * Questions are prioritized and each carries the reason it matters.
  */
-import type { NormalizedListing, RepairIssue, SearchProfile, TitleState } from "./types";
+import type { NormalizedListing, RepairIssue, SearchProfile } from "./types";
 import { TITLE_STATE_RANK } from "./types";
 
 export interface SellerQuestion {

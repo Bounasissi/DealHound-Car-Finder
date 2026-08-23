@@ -84,6 +84,12 @@ describe("buildIssues", () => {
 });
 
 describe("summarizeRepairs", () => {
+  it("marks an empty finding set as unknown rather than zero-cost", () => {
+    const summary = summarizeRepairs([]);
+    expect(summary.unknownCosts).toBe(true);
+    expect(summary.unknownReason).toMatch(/No repair findings/);
+  });
+
   it("totals ranges and flags rejected categories against profile rules", () => {
     const issues = [
       estimateIssue("COSMETIC", "LOW"),

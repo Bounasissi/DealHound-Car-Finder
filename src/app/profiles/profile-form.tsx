@@ -33,6 +33,7 @@ export default function ProfileForm() {
     try {
       const res = await fetch("/api/profiles", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
@@ -149,7 +150,7 @@ export default function ProfileForm() {
             <label key={cat} className={`cursor-pointer rounded-full border px-3 py-1 text-xs ${form.rejected.includes(cat) ? "border-red-300 bg-red-50 text-red-700" : "border-zinc-300 bg-white text-zinc-600"}`}>
               <input
                 type="checkbox"
-                className="hidden"
+                className="sr-only"
                 checked={form.rejected.includes(cat)}
                 onChange={(e) =>
                   setForm({

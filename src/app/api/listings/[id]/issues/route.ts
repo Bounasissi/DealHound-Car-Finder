@@ -1,4 +1,4 @@
-import { jsonOk, withApi } from "@/lib/api";
+import { jsonError, jsonOk, withApi } from "@/lib/api";
 import { estimateIssue } from "@/domain/repairs";
 import { userIssueInput } from "@/lib/schemas";
 import { evaluateAndStore } from "@/lib/evaluate";
@@ -20,7 +20,8 @@ export const POST = withApi<Ctx>("listings.addIssue", async (req, { params }) =>
   issue.estimateLow = Math.round(body.estimateExpected * 0.6);
   issue.estimateHigh = Math.round(body.estimateExpected * 1.6);
 
-  await addUserIssue(id, issue);
+  const added = await addUserIssue(id, issue);
+  if (!added) return jsonError(404, "Listing not found");
   const evaluation = await evaluateAndStore(id);
   return jsonOk({ evaluation: evaluation.evaluation });
 });

@@ -3,15 +3,28 @@ import { manualIngestInput } from "@/lib/schemas";
 import { buildManualListing } from "@/sources";
 import { normalizeListing } from "@/domain/normalize";
 import { evaluateAndStore } from "@/lib/evaluate";
-import { listListings, upsertListing } from "@/lib/repo";
+import { getProfile, listListings, upsertListing } from "@/lib/repo";
 
 export const GET = withApi("listings.list", async (req) => {
   const url = new URL(req.url);
   const watchedParam = url.searchParams.get("watched");
   const stage = url.searchParams.get("stage") ?? undefined;
+  const profileId = url.searchParams.get("profileId");
+  const profile = profileId ? await getProfile(profileId) : undefined;
+  if (profileId && !profile) return jsonError(404, "Profile not found");
+  const page = Number(url.searchParams.get("page") ?? "1");
+  const pageSize = Number(url.searchParams.get("pageSize") ?? "100");
+  const sortParam = url.searchParams.get("sort") ?? "recent";
+  if (sortParam !== "recent" && sortParam !== "price" && sortParam !== "score") {
+    return jsonError(400, "sort must be recent, price, or score");
+  }
   const listings = await listListings({
     watched: watchedParam === null ? undefined : watchedParam === "true",
     stage,
+    profile: profile ?? undefined,
+    page,
+    pageSize,
+    sort: sortParam,
   });
   return jsonOk({ listings });
 });

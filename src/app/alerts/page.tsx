@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { listAlerts } from "@/lib/repo";
 import { money } from "@/lib/format";
+import { withServerAuth } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlertsPage() {
-  const alerts = await listAlerts();
-  return (
+  return withServerAuth(async () => {
+    const alerts = await listAlerts();
+    return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Alerts</h1>
       <p className="text-sm text-zinc-600">
@@ -47,5 +49,6 @@ export default async function AlertsPage() {
         </ul>
       )}
     </div>
-  );
+    );
+  });
 }

@@ -28,6 +28,7 @@ describe("computeDealEconomics", () => {
       taxesTitleFees: Math.round(9500 * 0.08), // 760
       immediateMaintenance: 150,
       riskReserve: Math.round(1200 * 0.15 + 200), // 380
+      unknownRepairReserve: 0,
     });
     // 9500+1200+200+150+760+150+380 = 12340
     expect(expected.allInBasis).toBe(12340);

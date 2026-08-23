@@ -12,6 +12,9 @@ export default function IngestPage() {
   const [vin, setVin] = useState("");
   const [location, setLocation] = useState("");
   const [screenshotNotes, setScreenshotNotes] = useState("");
+  const [csv, setCsv] = useState("");
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvError, setCsvError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +36,7 @@ export default function IngestPage() {
       };
       const res = await fetch("/api/listings", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -43,6 +47,17 @@ export default function IngestPage() {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
     }
+  }
+
+  async function submitCsv(e: React.FormEvent) {
+    e.preventDefault(); setCsvBusy(true); setCsvError(null);
+    try {
+      const res = await fetch("/api/listings/import", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ csv }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setCsv(""); router.push("/");
+    } catch (err) { setCsvError(err instanceof Error ? err.message : String(err)); }
+    finally { setCsvBusy(false); }
   }
 
   return (
@@ -110,6 +125,16 @@ export default function IngestPage() {
         >
           {busy ? "Evaluating…" : "Ingest & Evaluate"}
         </button>
+      </form>
+
+      <form onSubmit={submitCsv} className="space-y-3 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 className="font-semibold">Import a CSV export</h2>
+          <p className="mt-1 text-sm text-zinc-600">User-provided data only. Supported columns include title, description, price, mileage, VIN, year, make, model, trim, location, seller, and contact.</p>
+        </div>
+        <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={7} placeholder={'title,price,mileage,year,make,model,location\n2015 Honda Accord,11500,98000,2015,Honda,Accord,"Mount Laurel, NJ"'} className="w-full rounded-md border border-zinc-300 p-3 font-mono text-sm" />
+        {csvError && <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{csvError}</p>}
+        <button type="submit" disabled={csvBusy || !csv.trim()} className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold hover:bg-zinc-50 disabled:opacity-40">{csvBusy ? "Importing…" : "Import CSV & Evaluate"}</button>
       </form>
     </div>
   );

@@ -9,18 +9,18 @@ import { evaluateListing } from "@/domain/pipeline";
 import type { DealEvaluation, SearchProfile } from "@/domain/types";
 import { decodeVin } from "@/domain/vin";
 import { log } from "./logger";
+import { deliverAlert } from "./notifications";
 import {
-  addHistoryCheck,
   countDuplicates,
   getCachedVin,
   getListing,
-  getProfile,
   latestHistoryCheck,
   listProfiles,
   listUserIssues,
   listValuations,
   patchListing,
   saveAlert,
+  updateAlertDelivery,
   saveEvaluation,
   setCachedVin,
 } from "./repo";
@@ -93,9 +93,13 @@ export async function evaluateAndStore(
   });
   if (decision.qualifies) {
     const headline = `${[listing.vehicle.year, listing.vehicle.make, listing.vehicle.model].filter(Boolean).join(" ")} — $${listing.price?.toLocaleString() ?? "?"}`;
-    await saveAlert(listingId, evaluationId, buildAlertPayload(listingId, headline, evaluation, null));
-    alertCreated = true;
-    log.info("alert.created", { listingId, score: evaluation.score.total });
+    const alert = await saveAlert(listingId, evaluationId, buildAlertPayload(listingId, headline, evaluation, null));
+    alertCreated = alert.created;
+    if (alert.created && alert.id) {
+      const delivery = await deliverAlert(buildAlertPayload(listingId, headline, evaluation, null));
+      await updateAlertDelivery(alert.id, delivery);
+      log.info("alert.created", { listingId, score: evaluation.score.total });
+    }
   }
 
   log.info("evaluation.stored", {

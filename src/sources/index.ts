@@ -4,8 +4,7 @@
  * Implementations:
  *  - ManualIngestionSource: Facebook Marketplace user-assisted ingestion
  *    (screenshots/copied text/URLs). No scraping — the user supplies content.
- *  - MockInventoryAdapter: production-shaped stand-in for a licensed inventory
- *    feed; activates real adapters by registering them in the registry.
+ *  - CsvListingSource: user-provided CSV import. No remote access is implied.
  *
  * Extensibility: authorized Craigslist/OfferUp/auction adapters implement the
  * same interface and register themselves — no core changes required.
@@ -29,11 +28,84 @@ export interface ListingSource {
 // ---------------------------------------------------------------------------
 
 export interface ManualIngestInput {
+  sourceId?: string;
+  sourceKind?: RawListing["sourceKind"];
   pastedText?: string;
   url?: string;
   screenshotNotes?: string[];
   photoNotes?: string[];
   overrides?: Partial<RawListing>;
+}
+
+/** Parse a small, user-provided CSV export without making network requests. */
+export function parseCsvListings(csv: string): ManualIngestInput[] {
+  const rows = parseCsvRows(csv);
+  if (rows.length < 2) throw new Error("CSV import requires a header row and at least one listing row");
+  const headers = rows[0].map((header) => normalizeHeader(header));
+  const index = (names: string[]) => headers.findIndex((header) => names.includes(header));
+  const at = (row: string[], names: string[]) => {
+    const i = index(names);
+    return i >= 0 ? row[i]?.trim() || undefined : undefined;
+  };
+  return rows.slice(1).filter((row) => row.some((cell) => cell.trim())).map((row) => {
+    const price = numberCell(at(row, ["price", "askingprice", "asking"]));
+    const mileage = integerCell(at(row, ["mileage", "miles", "odometer"]));
+    const year = integerCell(at(row, ["year"]));
+    const vin = at(row, ["vin"]);
+    return {
+      pastedText: [at(row, ["title", "name"]), at(row, ["description", "details"]), at(row, ["titleclaim", "title"])].filter(Boolean).join("\n") || undefined,
+      url: at(row, ["url", "listingurl", "link"]),
+      overrides: {
+        title: at(row, ["title", "name"]),
+        price,
+        mileage,
+        vin: vin && vin.length === 17 ? vin.toUpperCase() : undefined,
+        year,
+        make: at(row, ["make", "brand"]),
+        model: at(row, ["model"]),
+        trim: at(row, ["trim"]),
+        location: at(row, ["location", "city"]),
+        sellerName: at(row, ["seller", "sellername"]),
+        sellerContact: at(row, ["contact", "sellercontact"]),
+      },
+    } satisfies ManualIngestInput;
+  });
+}
+
+function normalizeHeader(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function numberCell(value?: string): number | undefined {
+  if (!value) return undefined;
+  const n = Number(value.replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function integerCell(value?: string): number | undefined {
+  const n = numberCell(value);
+  return n === undefined ? undefined : Math.round(n);
+}
+
+function parseCsvRows(csv: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let i = 0; i < csv.length; i += 1) {
+    const char = csv[i];
+    if (char === '"') {
+      if (quoted && csv[i + 1] === '"') { cell += '"'; i += 1; }
+      else quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell); cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && csv[i + 1] === "\n") i += 1;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += char;
+  }
+  if (cell.length || row.length) { row.push(cell); rows.push(row); }
+  return rows;
 }
 
 /**
@@ -46,8 +118,8 @@ export function buildManualListing(input: ManualIngestInput): RawListing {
   const o = input.overrides ?? {};
 
   const raw: RawListing = {
-    sourceId: "facebook-marketplace-manual",
-    sourceKind: "marketplace-screenshot",
+    sourceId: input.sourceId ?? "facebook-marketplace-manual",
+    sourceKind: input.sourceKind ?? "marketplace-screenshot",
     sourceListingId: o.sourceListingId ?? extractMarketplaceId(input.url),
     url: input.url,
     rawText: text || undefined,
@@ -82,6 +154,61 @@ export function buildManualListing(input: ManualIngestInput): RawListing {
   return raw;
 }
 
+/**
+ * Import a user-provided listing URL only when its host is explicitly
+ * allowlisted by the operator. This deliberately accepts JSON or plain text
+ * feeds, never scrapes arbitrary HTML, and never follows redirects to a new
+ * host.
+ */
+export async function fetchAllowlistedListingUrl(url: string): Promise<ManualIngestInput> {
+  const parsed = new URL(url);
+  const allowedHosts = (process.env.ALLOWED_LISTING_URL_HOSTS ?? "")
+    .split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+  if (!allowedHosts.includes(parsed.hostname.toLowerCase())) {
+    throw new Error("URL import is disabled for this host; paste the listing or configure an explicit allowlist");
+  }
+  const response = await fetch(parsed.toString(), {
+    headers: { accept: "application/json, text/plain" },
+    redirect: "error",
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Allowlisted listing URL returned HTTP ${response.status}`);
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("json") && !contentType.includes("text/plain")) {
+    throw new Error("URL import accepts only an allowlisted JSON or plain-text feed; HTML pages must be pasted manually");
+  }
+  const rawText = await response.text();
+  if (rawText.length > 100_000) throw new Error("Allowlisted listing response is too large");
+  if (contentType.includes("json")) {
+    const value = JSON.parse(rawText) as Record<string, unknown>;
+    const text = typeof value.description === "string" ? value.description : rawText;
+    return {
+      sourceId: "allowlisted-url-import",
+      sourceKind: "manual-ingestion",
+      pastedText: text,
+      url: parsed.toString(),
+      overrides: {
+        title: stringValue(value.title),
+        price: numberValue(value.price),
+        mileage: numberValue(value.mileage),
+        vin: typeof value.vin === "string" && value.vin.length === 17 ? value.vin.toUpperCase() : undefined,
+        year: numberValue(value.year),
+        make: stringValue(value.make),
+        model: stringValue(value.model),
+        trim: stringValue(value.trim),
+        location: stringValue(value.location),
+      },
+    };
+  }
+  return { sourceId: "allowlisted-url-import", sourceKind: "manual-ingestion", pastedText: rawText, url: parsed.toString() };
+}
+
+function stringValue(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
+function numberValue(value: unknown): number | undefined {
+  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value.replace(/[$,\s]/g, "")) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+}
+
 function firstLine(text: string): string | undefined {
   const line = text.split("\n").map((l) => l.trim()).find((l) => l.length > 0);
   return line?.slice(0, 140);
@@ -106,6 +233,14 @@ export class ManualIngestionSource implements ListingSource {
   }
 }
 
+export class CsvListingSource implements ListingSource {
+  readonly id = "csv-manual-import";
+  readonly label = "CSV (user-provided import)";
+  readonly kind = "manual-ingestion" as const;
+  isConfigured() { return true; }
+  async fetchListings(_profile: SearchProfile): Promise<RawListing[]> { void _profile; return []; }
+}
+
 // ---------------------------------------------------------------------------
 // Production-shaped mock inventory adapter
 // ---------------------------------------------------------------------------
@@ -115,31 +250,24 @@ export interface InventoryApiConfig {
   apiKey: string;
 }
 
-/**
- * Mirrors the shape of a licensed dealer-inventory API (e.g., a paid listings
- * feed). When credentials exist it would call `GET /listings?zip=&radius=...`;
- * without credentials it serves deterministic fixture data so the full
- * pipeline is exercisable end-to-end. Clearly labeled MOCK at runtime.
- */
-export class MockInventoryAdapter implements ListingSource {
-  readonly id = "inventory-api-mock";
-  readonly label = "Licensed inventory feed (MOCK)";
+export class HttpInventoryAdapter implements ListingSource {
+  readonly id = "licensed-inventory-api";
+  readonly label = "Licensed inventory feed";
   readonly kind = "inventory-api" as const;
 
-  constructor(private config: InventoryApiConfig | null, private fixtures: RawListing[]) {}
+  constructor(private config: InventoryApiConfig, private timeoutMs = 8000) {}
 
-  isConfigured(): boolean {
-    return this.config !== null && this.config.apiKey.length > 0;
-  }
+  isConfigured(): boolean { return Boolean(this.config.baseUrl && this.config.apiKey); }
 
   async fetchListings(profile: SearchProfile): Promise<RawListing[]> {
-    if (this.isConfigured()) {
-      // Real adapter call site — kept explicit so wiring a licensed feed is a
-      // single implementation change, not an architecture change.
-      // return this.http.get(`${config.baseUrl}/listings`, { params: toQuery(profile) });
-      throw new Error("Live inventory API not wired; provide adapter implementation");
-    }
-    return this.fixtures.filter((f) => matchesProfile(f, profile));
+    const params = new URLSearchParams({ zip: profile.zip, radiusMiles: String(profile.radiusMiles) });
+    const response = await Promise.race([
+      fetch(`${this.config.baseUrl.replace(/\/$/, "")}/listings?${params}`, { headers: { accept: "application/json", authorization: `Bearer ${this.config.apiKey}` }, cache: "no-store" }),
+      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error(`Inventory provider timed out after ${this.timeoutMs}ms`)), this.timeoutMs)),
+    ]);
+    if (!response.ok) throw new Error(`Inventory provider returned HTTP ${response.status}`);
+    const body = (await response.json()) as { listings?: RawListing[] };
+    return (body.listings ?? []).filter((listing) => matchesProfile(listing, profile));
   }
 }
 
@@ -182,3 +310,7 @@ class SourceRegistry {
 export const sourceRegistry = new SourceRegistry();
 
 sourceRegistry.register(new ManualIngestionSource());
+sourceRegistry.register(new CsvListingSource());
+if (process.env.INVENTORY_API_URL && process.env.INVENTORY_API_KEY) {
+  sourceRegistry.register(new HttpInventoryAdapter({ baseUrl: process.env.INVENTORY_API_URL, apiKey: process.env.INVENTORY_API_KEY }));
+}

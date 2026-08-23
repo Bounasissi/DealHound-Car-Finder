@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { evaluateListing } from "@/domain/pipeline";
-import { cleanHistory, evalInput, normalizedListing, salvageHistory } from "./fixtures";
+import { evalInput, normalizedListing, salvageHistory } from "./fixtures";
 import { estimateIssue } from "@/domain/repairs";
 
 describe("evaluateListing — end to end", () => {

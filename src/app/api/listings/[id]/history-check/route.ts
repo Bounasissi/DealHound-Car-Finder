@@ -1,5 +1,5 @@
-import { jsonOk, withApi } from "@/lib/api";
-import { historyProvider } from "@/sources/history";
+import { jsonError, jsonOk, withApi } from "@/lib/api";
+import { HistoryProviderUnavailableError, historyProvider } from "@/sources/history";
 import { evaluateAndStore } from "@/lib/evaluate";
 import { addHistoryCheck, getListing, patchListing } from "@/lib/repo";
 import { deriveTitleState } from "@/domain/title";
@@ -13,7 +13,15 @@ export const POST = withApi<Ctx>("listings.historyCheck", async (_req, { params 
   if (!listing) throw new Error("Listing not found");
   if (!listing.vin) throw new Error("VIN required before history check — request it from the seller");
 
-  const check = await historyProvider.check(listing.vin);
+  let check;
+  try {
+    check = await historyProvider.check(listing.vin);
+  } catch (error) {
+    if (error instanceof HistoryProviderUnavailableError) {
+      return jsonError(503, error.message, { code: error.code, retryable: true });
+    }
+    throw error;
+  }
   await addHistoryCheck(id, check);
 
   // History is authoritative over seller claims for the stored title state.

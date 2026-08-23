@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { loadConfig } from "@/domain/config";
 import { log } from "./logger";
+import { authenticate, runWithAuth } from "./auth";
+
+const requestWindows = new Map<string, { startedAt: number; count: number }>();
 
 export function jsonOk<T>(data: T, init?: ResponseInit) {
   return NextResponse.json(data as object, init);
@@ -19,9 +21,15 @@ export function withApi<Ctx = unknown>(
   return async (req: Request, ctx: Ctx): Promise<Response> => {
     const started = Date.now();
     try {
-      const authFailure = checkAuth(req);
-      if (authFailure) return authFailure;
-      const res = await handler(req, ctx);
+      const auth = authenticate(req);
+      if (auth.error) return jsonError(auth.error.status, auth.error.message);
+      const rateKey = auth.context!.userId;
+      const now = Date.now();
+      const window = requestWindows.get(rateKey);
+      const limit = loadRateLimit();
+      if (!window || now - window.startedAt >= 60_000) requestWindows.set(rateKey, { startedAt: now, count: 1 });
+      else if (++window.count > limit) return jsonError(429, "Rate limit exceeded", { retryAfterSeconds: 60 });
+      const res = await runWithAuth(auth.context!, () => handler(req, ctx));
       log.info("api.request", { route: name, status: res.status, ms: Date.now() - started });
       return res;
     } catch (err) {
@@ -36,11 +44,13 @@ export function withApi<Ctx = unknown>(
   };
 }
 
-/** Optional bearer-token gate. Disabled when APP_ACCESS_TOKEN is unset. */
+function loadRateLimit(): number {
+  const value = Number(process.env.API_RATE_LIMIT_PER_MINUTE ?? "120");
+  return Number.isFinite(value) && value > 0 ? value : 120;
+}
+
+/** Compatibility wrapper for callers that only need an auth response. */
 export function checkAuth(req: Request): Response | null {
-  const token = loadConfig().appAccessToken;
-  if (!token) return null; // local single-user mode
-  const provided = req.headers.get("authorization") ?? "";
-  if (provided === `Bearer ${token}`) return null;
-  return jsonError(401, "Unauthorized");
+  const auth = authenticate(req);
+  return auth.error ? jsonError(auth.error.status, auth.error.message) : null;
 }

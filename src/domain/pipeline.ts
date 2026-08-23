@@ -8,7 +8,7 @@ import { assessFraud } from "./fraud";
 import { computeDealEconomics } from "./economics";
 import { computePredictionError } from "./learning";
 import { buildIssues, parseIssuesFromText, summarizeRepairs } from "./repairs";
-import { computeDealScore } from "./scoring";
+import { computeDealScore, DEAL_SCORE_FORMULA_VERSION } from "./scoring";
 import {
   deriveTitleState,
   evaluateHardRejects,
@@ -19,7 +19,6 @@ import type {
   DealEvaluationInput,
   HistoryCheck,
   PurchaseOutcome,
-  ValuationResult,
   WorkflowStage,
 } from "./types";
 import { TITLE_STATE_RANK } from "./types";
@@ -115,6 +114,7 @@ export function evaluateListing(input: DealEvaluationInput, deps: PipelineDeps =
   return {
     listingId: listing.id ?? "",
     evaluatedAt: new Date().toISOString(),
+    formulaVersion: DEAL_SCORE_FORMULA_VERSION,
     vinDecode,
     titleState,
     hardRejected,

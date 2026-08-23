@@ -23,6 +23,7 @@ export const profileInput = z.object({
   maxFraudRiskScore: z.number().int().min(0).max(100).default(40),
   active: z.boolean().default(true),
 });
+export const profileUpdate = profileInput.partial();
 export type ProfileInput = z.infer<typeof profileInput>;
 
 export const manualIngestInput = z.object({
@@ -47,8 +48,21 @@ export const manualIngestInput = z.object({
     .optional(),
 });
 
+export const csvImportInput = z.object({
+  csv: z.string().min(1).max(2_000_000),
+});
+
+export const allowlistedUrlImportInput = z.object({
+  url: z.string().url(),
+});
+
+export const titleVerificationInput = z.object({
+  state: z.enum(["UNKNOWN", "SELLER_CLAIMS_CLEAN", "DOCUMENT_REVIEWED"]),
+  evidenceNote: z.string().min(3).max(1000),
+});
+
 export const valuationInput = z.object({
-  provider: z.enum(["manual-kbb-entry", "comps"]),
+  provider: z.enum(["manual-kbb-entry", "comps", "licensed-kbb"]),
   referenceGoodValue: z.number().min(100).max(1_000_000).optional(),
   comps: z
     .array(

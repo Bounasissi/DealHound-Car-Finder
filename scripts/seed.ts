@@ -7,9 +7,8 @@ import { loadConfig } from "../src/domain/config";
 import { normalizeListing } from "../src/domain/normalize";
 import type { RawListing } from "../src/domain/types";
 import { evaluateAndStore } from "../src/lib/evaluate";
-import { addHistoryCheck, addValuation, getProfile, createProfile, listProfiles, upsertListing } from "../src/lib/repo";
-import { historyProvider } from "../src/sources/history";
-import { pool } from "./db-close";
+import { addHistoryCheck, addValuation, createProfile, listProfiles, upsertListing } from "../src/lib/repo";
+import { seedHistoryCheck } from "../src/sources/history";
 
 const SEED_LISTINGS: Array<{ raw: RawListing; kbbGood: number }> = [
   {
@@ -173,7 +172,8 @@ async function main() {
     });
 
     if (listing.vin) {
-      const check = await historyProvider.check(listing.vin);
+      const brands = listing.description?.toLowerCase().includes("salvage") ? ["SALVAGE"] : [];
+      const check = seedHistoryCheck(listing.vin, brands);
       await addHistoryCheck(listing.id!, check);
     }
 
@@ -187,12 +187,7 @@ async function main() {
   console.log("Seed complete.");
 }
 
-main()
-  .then(async () => {
-    await pool.end();
-    process.exit(0);
-  })
-  .catch((err) => {
+main().then(() => process.exit(0)).catch((err) => {
     console.error("Seed failed:", err);
     process.exit(1);
   });

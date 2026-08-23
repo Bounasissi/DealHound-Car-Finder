@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDedupKey, mergeIntoExisting, normalizeListing } from "@/domain/normalize";
+import { computeDedupKey, mergeIntoExisting, normalizeListing, sourceListingIdentity } from "@/domain/normalize";
 import { VIN_CAMRY, rawListing } from "./fixtures";
 
 describe("normalizeListing", () => {
@@ -24,6 +24,13 @@ describe("normalizeListing", () => {
 });
 
 describe("computeDedupKey", () => {
+  it("keeps a stable source identity when mutable listing facts change", () => {
+    const a = normalizeListing(rawListing({ sourceListingId: "marketplace-123", mileage: 98000 }));
+    const b = normalizeListing(rawListing({ sourceListingId: "marketplace-123", mileage: 101000, location: "Cherry Hill, NJ" }));
+    expect(sourceListingIdentity(a)).toBe("facebook-marketplace-manual:marketplace-123");
+    expect(sourceListingIdentity(a)).toBe(sourceListingIdentity(b));
+  });
+
   it("VIN key is canonical", () => {
     expect(computeDedupKey(VIN_CAMRY, { year: null, make: null, model: null, mileage: null, location: null })).toBe(`vin:${VIN_CAMRY}`);
   });

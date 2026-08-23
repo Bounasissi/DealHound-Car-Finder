@@ -61,6 +61,24 @@ describe("LicensedKbbProvider", () => {
     expect(p.isConfigured()).toBe(false);
     expect(await p.getReferenceValue({ listing: normalizedListing() })).toBeNull();
   });
+
+  it("parses a configured licensed-provider response without fabricating data", async () => {
+    const fetchImpl: typeof fetch = async () => new Response(JSON.stringify({
+      provider: "licensed-test",
+      referenceGoodValue: 15200,
+      confidence: 0.92,
+      notes: "provider response",
+    }), { status: 200, headers: { "content-type": "application/json" } });
+    const p = new LicensedKbbProvider("https://valuation.test", "key", 1000, fetchImpl);
+    const result = await p.getReferenceValue({ listing: normalizedListing() });
+    expect(result).toMatchObject({ provider: "licensed-test", referenceGoodValue: 15200, confidence: 0.92 });
+  });
+
+  it("fails closed on provider errors", async () => {
+    const fetchImpl: typeof fetch = async () => new Response("down", { status: 503 });
+    const p = new LicensedKbbProvider("https://valuation.test", "key", 1000, fetchImpl);
+    await expect(p.getReferenceValue({ listing: normalizedListing() })).rejects.toThrow(/HTTP 503/);
+  });
 });
 
 describe("buildValuationBundle", () => {

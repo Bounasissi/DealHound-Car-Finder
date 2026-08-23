@@ -35,6 +35,7 @@ export function computeDealEconomics(input: EconomicsInput): DealEconomics | nul
     riskReservePct: number,
     riskReserveBase: number,
   ): DealScenario => {
+    const unknownRepairReserve = repairs.unknownCosts ? config.unknownRepairReserve : 0;
     const riskReserve = Math.round(repairsCost * riskReservePct + riskReserveBase);
     const components = {
       askingPrice,
@@ -44,6 +45,7 @@ export function computeDealEconomics(input: EconomicsInput): DealEconomics | nul
       taxesTitleFees,
       immediateMaintenance,
       riskReserve,
+      unknownRepairReserve,
     };
     const allInBasis = Object.values(components).reduce((s, v) => s + v, 0);
     const margin = conservativeFinishedValue - allInBasis;

@@ -7,10 +7,12 @@ import {
   text,
   timestamp,
   uuid,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 export const searchProfiles = pgTable("search_profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   name: text("name").notNull(),
   zip: text("zip").notNull(),
   radiusMiles: integer("radius_miles").notNull().default(100),
@@ -36,6 +38,7 @@ export const searchProfiles = pgTable("search_profiles", {
 
 export const listings = pgTable("listings", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   sourceId: text("source_id").notNull(),
   sourceKind: text("source_kind").notNull(),
   sourceListingId: text("source_listing_id"),
@@ -57,7 +60,7 @@ export const listings = pgTable("listings", {
   sellerType: text("seller_type").notNull().default("unknown"),
   sellerContact: text("seller_contact"),
   photos: jsonb("photos").$type<Array<{ url?: string; note?: string; analyzedFindings?: string[] }>>().notNull().default([]),
-  titleClaims: jsonb("title_claims").$type<Array<{ claim: string; claimedClean: boolean; source: string; capturedAt: string }>>().notNull().default([]),
+  titleClaims: jsonb("title_claims").$type<Array<{ claim: string; claimedClean: boolean; source: string; capturedAt: string; evidenceNote?: string }>>().notNull().default([]),
   titleState: text("title_state").notNull().default("UNKNOWN"),
   parsedIssues: jsonb("parsed_issues").$type<Array<{ category: string; snippet: string; confidence: number }>>().notNull().default([]),
   redFlags: jsonb("red_flags").$type<Array<{ code: string; description: string; detectedAt: string }>>().notNull().default([]),
@@ -75,6 +78,7 @@ export const listings = pgTable("listings", {
 
 export const valuations = pgTable("valuations", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(),
   referenceGoodValue: numeric("reference_good_value", { precision: 10, scale: 2 }).notNull(),
@@ -89,6 +93,7 @@ export const valuations = pgTable("valuations", {
 
 export const historyChecks = pgTable("history_checks", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(),
   vin: text("vin").notNull(),
@@ -102,6 +107,7 @@ export const historyChecks = pgTable("history_checks", {
 
 export const userIssues = pgTable("user_issues", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   category: text("category").notNull(),
   description: text("description").notNull(),
@@ -117,10 +123,12 @@ export const userIssues = pgTable("user_issues", {
 
 export const evaluations = pgTable("evaluations", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   profileId: uuid("profile_id").references(() => searchProfiles.id, { onDelete: "set null" }),
   score: integer("score").notNull(),
   scoreClass: text("score_class").notNull(),
+  formulaVersion: text("formula_version").notNull().default("deal-score-v1"),
   askingRatio: numeric("asking_ratio", { precision: 6, scale: 4 }),
   gateAPassed: boolean("gate_a_passed"),
   gateBPassed: boolean("gate_b_passed"),
@@ -133,15 +141,22 @@ export const evaluations = pgTable("evaluations", {
 
 export const alerts = pgTable("alerts", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   evaluationId: uuid("evaluation_id").references(() => evaluations.id, { onDelete: "cascade" }),
+  alertKey: text("alert_key").notNull(),
   payload: jsonb("payload").notNull(),
   delivered: boolean("delivered").notNull().default(false),
+  deliveryStatus: text("delivery_status").notNull().default("PENDING"),
+  deliveryAttempts: integer("delivery_attempts").notNull().default(0),
+  deliveryError: text("delivery_error"),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({ alertKeyUnique: uniqueIndex("alerts_owner_key_unique").on(table.ownerId, table.alertKey) }));
 
 export const outcomes = pgTable("outcomes", {
   id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   evaluationId: uuid("evaluation_id").references(() => evaluations.id, { onDelete: "set null" }),
   outcome: text("outcome").notNull(),

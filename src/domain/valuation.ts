@@ -4,6 +4,7 @@
  * Reference selection is conservative (lowest credible source wins).
  */
 import type { CompSale, NormalizedListing, ValuationBundle, ValuationResult } from "./types";
+import { loadConfig } from "./config";
 
 export interface ValuationQuery {
   listing: NormalizedListing;
@@ -81,21 +82,50 @@ export class CompsProvider implements ValuationProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Licensed KBB provider placeholder — activates only when credentials exist.
+// Licensed valuation provider boundary. The vendor contract returns a
+// KBB-Good-equivalent value and provenance; no value is fabricated locally.
 // ---------------------------------------------------------------------------
 
 export class LicensedKbbProvider implements ValuationProvider {
   id = "kbb-licensed";
-  label = "Licensed KBB valuation API";
-  constructor(private credsPresent: () => boolean, private fetchImpl?: typeof fetch) {}
-  isConfigured() { return this.credsPresent(); }
-  async getReferenceValue(_q: ValuationQuery): Promise<ValuationResult | null> {
-    // Wire point for a licensed data partner (e.g., KBB/ Cox Automotive API).
-    // Intentionally returns null until credentials + endpoint are provided;
-    // never fabricates values.
-    void this.fetchImpl;
-    return null;
+  label = "Licensed valuation API";
+  constructor(
+    private readonly url: string | (() => boolean),
+    private readonly apiKey = "",
+    private readonly timeoutMs = 8000,
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {}
+  isConfigured() {
+    return typeof this.url === "string" ? Boolean(this.url && this.apiKey) : this.url();
   }
+  async getReferenceValue(query: ValuationQuery): Promise<ValuationResult | null> {
+    if (typeof this.url !== "string" || !this.isConfigured()) return null;
+    const response = await Promise.race([
+      this.fetchImpl(`${this.url.replace(/\/$/, "")}/valuations`, {
+        method: "POST",
+        headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({ vehicle: query.listing.vehicle, mileage: query.listing.mileage, askingPrice: query.listing.price }),
+      }),
+      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error(`Valuation provider timed out after ${this.timeoutMs}ms`)), this.timeoutMs)),
+    ]);
+    if (!response.ok) throw new Error(`Valuation provider returned HTTP ${response.status}`);
+    const body = (await response.json()) as { referenceGoodValue?: number; confidence?: number; notes?: string; provider?: string };
+    if (!body.referenceGoodValue || body.referenceGoodValue <= 0) return null;
+    return {
+      provider: body.provider ?? this.id,
+      referenceGoodValue: body.referenceGoodValue,
+      compMedian: null,
+      compRange: null,
+      confidence: body.confidence ?? 0.8,
+      notes: body.notes ?? "Licensed provider response",
+      computedAt: new Date().toISOString(),
+    };
+  }
+}
+
+export function configuredLicensedKbbProvider(): LicensedKbbProvider {
+  const config = loadConfig();
+  return new LicensedKbbProvider(config.valuationProviderUrl, config.valuationProviderApiKey, config.valuationTimeoutMs);
 }
 
 // ---------------------------------------------------------------------------

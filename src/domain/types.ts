@@ -42,10 +42,11 @@ export interface TitleClaim {
   claimedClean: boolean;
   source: "LISTING_TEXT" | "SELLER_MESSAGE" | "USER_INPUT";
   capturedAt: string; // ISO timestamp
+  evidenceNote?: string;
 }
 
 export interface HistoryCheck {
-  provider: string; // "nmvtis" | "autocheck-mock" | "manual"
+  provider: string; // approved provider or explicit manual/seed provenance
   vin: string;
   titleState: TitleState;
   brands: string[]; // normalized brand codes, empty if clean
@@ -215,6 +216,9 @@ export interface RepairEstimateSummary {
   totalHigh: number;
   hasMajorRisk: boolean;
   rejectedCategories: RepairCategory[]; // issues in categories the profile rejects
+  /** True when no explicit repair evidence supports a zero-cost assumption. */
+  unknownCosts: boolean;
+  unknownReason: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +274,7 @@ export interface AllInBasisComponents {
   taxesTitleFees: number;
   immediateMaintenance: number;
   riskReserve: number;
+  unknownRepairReserve: number;
 }
 
 export interface DealScenario {
@@ -470,6 +475,7 @@ export interface DealEvaluationInput {
 export interface DealEvaluation {
   listingId: string;
   evaluatedAt: string;
+  formulaVersion: string;
   vinDecode: VinDecodeResult | null;
   titleState: TitleState;
   hardRejected: boolean;

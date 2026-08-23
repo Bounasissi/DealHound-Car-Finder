@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAlertPayload, evaluateAlertRule } from "@/domain/alerts";
 import { evaluateListing } from "@/domain/pipeline";
-import { cleanHistory, evalInput, normalizedListing } from "./fixtures";
+import { evalInput, normalizedListing } from "./fixtures";
 import type { DealEvaluationInput, SearchProfile } from "@/domain/types";
 
 const rule = {
@@ -21,7 +21,7 @@ function strongDealInput(): DealEvaluationInput {
   const listing = normalizedListing({
     price: 7200,
     title: "2016 Toyota Camry LE",
-    description: "Well maintained, garage kept, new inspection. Selling because we moved.",
+    description: "Well maintained, garage kept, new tires and brakes, selling because we moved.",
     rawText: undefined,
   });
   return evalInput({ listing, valuations: [{ provider: "manual-kbb-entry", referenceGoodValue: 15000, compMedian: null, compRange: null, confidence: 0.9, notes: "", computedAt: "2026-08-22T12:00:00.000Z" }] });

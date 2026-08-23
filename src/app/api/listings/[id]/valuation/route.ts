@@ -1,5 +1,5 @@
-import { jsonOk, withApi } from "@/lib/api";
-import { CompsProvider, ManualKbbProvider, buildValuationBundle } from "@/domain/valuation";
+import { jsonError, jsonOk, withApi } from "@/lib/api";
+import { CompsProvider, ManualKbbProvider, buildValuationBundle, configuredLicensedKbbProvider } from "@/domain/valuation";
 import { valuationInput } from "@/lib/schemas";
 import { evaluateAndStore } from "@/lib/evaluate";
 import { addValuation, getListing } from "@/lib/repo";
@@ -18,7 +18,16 @@ export const POST = withApi<Ctx>("listings.valuation", async (req, { params }) =
   if (!listing) throw new Error("Listing not found");
 
   let result = null;
-  if (body.provider === "manual-kbb-entry") {
+  if (body.provider === "licensed-kbb") {
+    const provider = configuredLicensedKbbProvider();
+    if (!provider.isConfigured()) return jsonError(503, "Licensed valuation provider is not configured", { retryable: true });
+    try {
+      result = await provider.getReferenceValue({ listing });
+    } catch (error) {
+      return jsonError(503, error instanceof Error ? error.message : "Licensed valuation provider failed", { retryable: true });
+    }
+    if (!result) throw new Error("Licensed valuation provider is unavailable or returned no credible value");
+  } else if (body.provider === "manual-kbb-entry") {
     if (!body.referenceGoodValue) throw new Error("referenceGoodValue required for manual KBB entry");
     const provider = new ManualKbbProvider(() => body.referenceGoodValue!);
     result = await provider.getReferenceValue({ listing });

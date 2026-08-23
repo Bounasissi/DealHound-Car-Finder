@@ -44,8 +44,24 @@ export interface AppConfig {
   /** NHTSA vPIC base URL (public, keyless). */
   vpicBaseUrl: string;
   vpicTimeoutMs: number;
-  /** Optional bearer token gate for the API. Empty = auth disabled (local single-user). */
+  /** Bearer token used by the local single-user deployment. */
   appAccessToken: string;
+  /** Stable owner id for the single-token deployment. */
+  appUserId: string;
+  /** Explicitly allow unauthenticated local development only. */
+  allowUnauthenticatedLocal: boolean;
+  /** Reserve applied when no repair evidence is present. */
+  unknownRepairReserve: number;
+  /** Remote approved history-provider endpoint. */
+  historyProviderUrl: string;
+  historyProviderApiKey: string;
+  historyTimeoutMs: number;
+  valuationProviderUrl: string;
+  valuationProviderApiKey: string;
+  valuationTimeoutMs: number;
+  alertWebhookUrl: string;
+  alertWebhookTimeoutMs: number;
+  apiRateLimitPerMinute: number;
 }
 
 export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -67,6 +83,18 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     vpicBaseUrl: process.env.VPIC_BASE_URL ?? "https://vpic.nhtsa.dot.gov/api/vehicles",
     vpicTimeoutMs: num("VPIC_TIMEOUT_MS", 8000),
     appAccessToken: process.env.APP_ACCESS_TOKEN ?? "",
+    appUserId: process.env.APP_USER_ID ?? "primary",
+    allowUnauthenticatedLocal: bool("ALLOW_UNAUTHENTICATED_LOCAL", process.env.NODE_ENV !== "production"),
+    unknownRepairReserve: num("UNKNOWN_REPAIR_RESERVE", 1500),
+    historyProviderUrl: process.env.HISTORY_PROVIDER_URL ?? "",
+    historyProviderApiKey: process.env.HISTORY_PROVIDER_API_KEY ?? "",
+    historyTimeoutMs: num("HISTORY_TIMEOUT_MS", 8000),
+    valuationProviderUrl: process.env.VALUATION_PROVIDER_URL ?? "",
+    valuationProviderApiKey: process.env.VALUATION_PROVIDER_API_KEY ?? "",
+    valuationTimeoutMs: num("VALUATION_TIMEOUT_MS", 8000),
+    alertWebhookUrl: process.env.ALERT_WEBHOOK_URL ?? "",
+    alertWebhookTimeoutMs: num("ALERT_WEBHOOK_TIMEOUT_MS", 5000),
+    apiRateLimitPerMinute: num("API_RATE_LIMIT_PER_MINUTE", 120),
     ...overrides,
   };
 }

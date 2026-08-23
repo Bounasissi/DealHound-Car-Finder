@@ -8,7 +8,6 @@ import { parseIssuesFromText } from "./repairs";
 import { deriveTitleState, parseTitleClaims } from "./title";
 import { TITLE_STATE_RANK, type NormalizedListing, type RawListing } from "./types";
 import { extractVin } from "./vin";
-import { emptyAttributes } from "./vin";
 
 export function normalizeListing(raw: RawListing, now = new Date()): NormalizedListing {
   const ts = now.toISOString();
@@ -82,6 +81,10 @@ export function computeDedupKey(
     (fallback.location ?? "?").toLowerCase().replace(/[^a-z0-9]/g, ""),
   ].join("|");
   return `attr:${createHash("sha256").update(parts).digest("hex").slice(0, 16)}`;
+}
+
+export function sourceListingIdentity(listing: Pick<NormalizedListing, "sourceId" | "sourceListingId">): string | null {
+  return listing.sourceListingId ? `${listing.sourceId}:${listing.sourceListingId}` : null;
 }
 
 export interface MergeResult {
