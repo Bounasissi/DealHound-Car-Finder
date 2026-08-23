@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { parseIssuesFromText } from "./repairs";
 import { deriveTitleState, parseTitleClaims } from "./title";
-import type { NormalizedListing, RawListing } from "./types";
+import { TITLE_STATE_RANK, type NormalizedListing, type RawListing } from "./types";
 import { extractVin } from "./vin";
 import { emptyAttributes } from "./vin";
 
@@ -141,7 +141,10 @@ export function mergeIntoExisting(existing: NormalizedListing, incoming: Normali
   }
   if (incoming.photos.length > existing.photos.length) merged.photos = incoming.photos;
 
-  merged.titleState = deriveTitleState(merged.titleClaims, null);
+  const derivedTitleState = deriveTitleState(merged.titleClaims, null);
+  if (TITLE_STATE_RANK[derivedTitleState] > TITLE_STATE_RANK[merged.titleState]) {
+    merged.titleState = derivedTitleState;
+  }
   merged.lastSeenAt = incoming.lastSeenAt;
 
   return { merged, changedFields: changed, isDuplicate: changed.length === 0 };

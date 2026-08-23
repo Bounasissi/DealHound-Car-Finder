@@ -19,3 +19,4 @@ function makeClient(): postgres.Sql {
 }
 
 export const db = drizzle(makeClient(), { schema });
+

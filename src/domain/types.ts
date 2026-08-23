@@ -159,6 +159,8 @@ export interface NormalizedListing {
   firstSeenAt: string;
   lastSeenAt: string;
   dedupKey: string;
+  /** Present once persisted; new listings start at the DB default ("FOUND"). */
+  workflowStage?: WorkflowStage;
 }
 
 export interface ParsedIssueRef {

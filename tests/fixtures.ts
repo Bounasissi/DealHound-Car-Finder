@@ -10,8 +10,8 @@ import type { RawListing } from "@/domain/types";
 
 /** Known-valid VIN (2003 Honda Accord EX V6). */
 export const VIN_ACCORD = "1HGCM82633A004352";
-/** Valid per ISO 3779 check-digit (Camry-shaped test VIN). */
-export const VIN_CAMRY = "4T1BF1FK5FU009306";
+/** Camry-shaped VIN, verified valid per ISO 3779 check-digit. */
+export const VIN_CAMRY = "4T1BF1FK5FU100274";
 
 export function defaultProfile(overrides: Partial<SearchProfile> = {}): SearchProfile {
   return {

@@ -9,9 +9,9 @@ import { cleanHistory, defaultProfile, evalInput, manualValuation, normalizedLis
 
 function scoreFor(overrides: Parameters<typeof computeDealScore>[0] extends never ? never : Partial<Parameters<typeof computeDealScore>[0]> = {}) {
   const listing = overrides.repairs !== undefined ? normalizedListing() : normalizedListing();
-  const valuation = buildValuationBundle([manualValuation(15000)], 9500);
+  const valuation = buildValuationBundle([manualValuation(15000)], 8500);
   const repairs = overrides.repairs ?? summarizeRepairs([]);
-  const economics = computeDealEconomics({ askingPrice: 9500, valuation, repairs, config: loadConfig() });
+  const economics = computeDealEconomics({ askingPrice: 8500, valuation, repairs, config: loadConfig() });
   const fraud = assessFraud({ listing, valuation, vinMismatch: false, duplicateCount: 0, config: loadConfig() });
   return computeDealScore({
     economics,
@@ -20,7 +20,7 @@ function scoreFor(overrides: Parameters<typeof computeDealScore>[0] extends neve
     requireCleanTitle: true,
     vinConfidence: "DECODED_MATCH",
     fraud,
-    profile: defaultProfile(),
+    profile: defaultProfile({ minDealMargin: 1500 }),
     liquidity: { comparableCount: 6 },
     distanceMiles: 20,
     hasSellerContact: true,

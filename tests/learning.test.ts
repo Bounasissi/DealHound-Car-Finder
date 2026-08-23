@@ -62,7 +62,7 @@ describe("aggregateCalibration", () => {
         actualFinishedValue: null, actualAllIn: null, actualMargin: null, soldPrice: null,
       }),
     });
-    const records = [mk(1.2), mk(0.8), mk(1.0), { listingId: "x", outcome: "SCAM", recordedAt: "now" }];
+    const records: OutcomeRecord[] = [mk(1.2), mk(0.8), mk(1.0), { listingId: "x", outcome: "SCAM", recordedAt: "now" }];
     const stats = aggregateCalibration(records);
     expect(stats.purchases).toBe(3);
     expect(stats.underestimates).toBe(1);

@@ -99,13 +99,15 @@ export function computeDealScore(input: ScoringInput): DealScore {
   let econValue = 0;
   if (economics) {
     const r = economics.expectedAllInToValueRatio;
-    // Piecewise: ≤0.45→100; 0.60→85; 0.70→65; 0.85→40; above falls to 0.
+    // Piecewise curve. Conservatism is already enforced by Gate B and the
+    // finished-value haircut, so this factor grades position on the curve
+    // rather than double-punishing: ≤0.45→100; 0.60→90; 0.70→70; 0.85→45.
     econValue =
       r <= 0.45 ? 100
-      : r <= 0.6 ? 85 + ((0.6 - r) / 0.15) * 15
-      : r <= 0.7 ? 65 + ((0.7 - r) / 0.1) * 20
-      : r <= 0.85 ? 40 + ((0.85 - r) / 0.25) * 25
-      : Math.max(0, 40 - (r - 0.85) * 240);
+      : r <= 0.6 ? 90 + ((0.6 - r) / 0.15) * 10
+      : r <= 0.7 ? 70 + ((0.7 - r) / 0.1) * 20
+      : r <= 0.85 ? 45 + ((0.85 - r) / 0.25) * 25
+      : Math.max(0, 45 - (r - 0.85) * 240);
     factors.push({
       key: "postRepairEconomics",
       label: "Post-repair economics (all-in vs finished value)",

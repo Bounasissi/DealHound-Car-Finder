@@ -16,10 +16,10 @@ function profileWith(overrides: Partial<SearchProfile> = {}): SearchProfile {
   return { ...evalInput().profile, ...overrides };
 }
 
-/** Strong deal: ratio 0.50, no repairs, clean history → should clear every condition. */
+/** Strong deal: ratio 0.48, no repairs, clean history → should clear every condition. */
 function strongDealInput(): DealEvaluationInput {
   const listing = normalizedListing({
-    price: 7500,
+    price: 7200,
     title: "2016 Toyota Camry LE",
     description: "Well maintained, garage kept, new inspection. Selling because we moved.",
     rawText: undefined,

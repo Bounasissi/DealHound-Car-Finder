@@ -9,8 +9,8 @@ export default {
   dbCredentials: envUrl
     ? { url: envUrl }
     : {
-        // Local dev default: repo-local cluster (scripts/db-setup.sh).
-        socketPath: `${process.cwd()}/.pgsock/.s.PGSQL.5433`,
+        host: `${process.cwd()}/.pgsock`,
+        port: 5433,
         user: "dealhound",
         database: "dealhound",
       },

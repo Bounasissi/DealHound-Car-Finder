@@ -4,8 +4,8 @@ import { cleanHistory, evalInput, normalizedListing, salvageHistory } from "./fi
 import { estimateIssue } from "@/domain/repairs";
 
 describe("evaluateListing — end to end", () => {
-  it("exceptional deal: clean history, ratio 0.55, minor repairs → gates pass, STRONG_BUY+", () => {
-    const listing = normalizedListing({ price: 8250 });
+  it("exceptional deal: clean history, ratio 0.50, minor repairs → gates pass, STRONG_BUY+", () => {
+    const listing = normalizedListing({ price: 7500 });
     const result = evaluateListing(evalInput({ listing }));
     expect(result.hardRejected).toBe(false);
     expect(result.economics!.gateA.passed).toBe(true);

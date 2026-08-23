@@ -67,8 +67,10 @@ export interface DecodeDeps {
   timeoutMs: number;
   fetchImpl?: typeof fetch;
   /** Injected cache lookup — returns cached decode if fresh enough. */
-  cacheGet?: (vin: string) => VinDecodeResult | null | undefined;
-  cacheSet?: (vin: string, result: VinDecodeResult) => void;
+  cacheGet?: (
+    vin: string,
+  ) => VinDecodeResult | null | undefined | Promise<VinDecodeResult | null | undefined>;
+  cacheSet?: (vin: string, result: VinDecodeResult) => void | Promise<void>;
   now?: () => Date;
 }
 
@@ -89,7 +91,7 @@ export async function decodeVin(vin: string, deps: DecodeDeps): Promise<VinDecod
   const now = (deps.now ?? (() => new Date()))();
   const v = vin.trim().toUpperCase();
 
-  const cached = deps.cacheGet?.(v);
+  const cached = await deps.cacheGet?.(v);
   if (cached) return { ...cached, source: "cache", decodedAt: now.toISOString() };
 
   const valid = validateVin(v);
@@ -130,7 +132,7 @@ export async function decodeVin(vin: string, deps: DecodeDeps): Promise<VinDecod
       decodedAt: now.toISOString(),
       source: "nhtsa-vpic",
     };
-    deps.cacheSet?.(v, result);
+    void Promise.resolve(deps.cacheSet?.(v, result)).catch(() => undefined);
     return result;
   } catch {
     // Network failure: keep format-valid status; do NOT fabricate attributes.
