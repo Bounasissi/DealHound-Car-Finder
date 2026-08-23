@@ -4,39 +4,52 @@
  */
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { client } from "../src/db";
+import postgres from "postgres";
 
-async function main() {
-  const dir = path.join(process.cwd(), "drizzle");
-  let files: string[] = [];
-  try {
-    files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-  } catch {
-    console.log("No ./drizzle directory; nothing to migrate.");
-    return;
-  }
-
-  await client`CREATE TABLE IF NOT EXISTS _migrations (
-    name text PRIMARY KEY,
-    applied_at timestamptz NOT NULL DEFAULT now()
-  )`;
-  const applied = new Set(
-    (await client`SELECT name FROM _migrations`).map((r) => r.name as string),
-  );
-
-  for (const file of files) {
-    if (applied.has(file)) continue;
-    const sql = readFileSync(path.join(dir, file), "utf8");
-    console.log(`Applying ${file} ...`);
-    await client.unsafe(sql);
-    await client`INSERT INTO _migrations (name) VALUES (${file})`;
-  }
-  console.log("Migrations complete.");
+function connect(): postgres.Sql {
+  if (process.env.DATABASE_URL) return postgres(process.env.DATABASE_URL);
+  return postgres({
+    host: `${process.cwd()}/.pgsock`,
+    port: 5433,
+    user: "dealhound",
+    database: "dealhound",
+  });
 }
 
-main()
-  .then(() => client.end())
-  .catch((err) => {
-    console.error("Migration failed:", err);
-    process.exit(1);
-  });
+async function main() {
+  const sql = connect();
+  try {
+    const dir = path.join(process.cwd(), "drizzle");
+    let files: string[] = [];
+    try {
+      files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
+    } catch {
+      console.log("No ./drizzle directory; nothing to migrate.");
+      return;
+    }
+
+    await sql`CREATE TABLE IF NOT EXISTS _migrations (
+      name text PRIMARY KEY,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    const applied = new Set(
+      (await sql`SELECT name FROM _migrations`).map((r) => r.name as string),
+    );
+
+    for (const file of files) {
+      if (applied.has(file)) continue;
+      const script = readFileSync(path.join(dir, file), "utf8");
+      console.log(`Applying ${file} ...`);
+      await sql.unsafe(script);
+      await sql`INSERT INTO _migrations (name) VALUES (${file})`;
+    }
+    console.log("Migrations complete.");
+  } finally {
+    await sql.end();
+  }
+}
+
+main().catch((err) => {
+  console.error("Migration failed:", err);
+  process.exit(1);
+});

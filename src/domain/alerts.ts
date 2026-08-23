@@ -3,7 +3,7 @@
  *   score >= min AND asking_ratio <= max AND title confidence sufficient
  *   AND expected_margin >= minimum AND no major mechanical risk (configurable)
  */
-import type { AlertPayload, DealEvaluation, SearchProfile } from "./types";
+import { TITLE_STATE_RANK, type AlertPayload, type DealEvaluation, type SearchProfile } from "./types";
 
 export interface AlertDecision {
   qualifies: boolean;

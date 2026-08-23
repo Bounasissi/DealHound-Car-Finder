@@ -99,8 +99,13 @@ export function computeDealScore(input: ScoringInput): DealScore {
   let econValue = 0;
   if (economics) {
     const r = economics.expectedAllInToValueRatio;
-    // 0.80 → 60 pts; 0.60 → 90; <=0.45 → 100. Above 0.80 falls off fast.
-    econValue = r <= 0.45 ? 100 : r <= 0.6 ? 60 + ((0.6 - r) / 0.15) * 30 : r <= 0.8 ? 60 - ((r - 0.6) / 0.2) * 40 : Math.max(0, 20 - (r - 0.8) * 200);
+    // Piecewise: ≤0.45→100; 0.60→85; 0.70→65; 0.85→40; above falls to 0.
+    econValue =
+      r <= 0.45 ? 100
+      : r <= 0.6 ? 85 + ((0.6 - r) / 0.15) * 15
+      : r <= 0.7 ? 65 + ((0.7 - r) / 0.1) * 20
+      : r <= 0.85 ? 40 + ((0.85 - r) / 0.25) * 25
+      : Math.max(0, 40 - (r - 0.85) * 240);
     factors.push({
       key: "postRepairEconomics",
       label: "Post-repair economics (all-in vs finished value)",
@@ -137,8 +142,8 @@ export function computeDealScore(input: ScoringInput): DealScore {
   const highSevCount = repairs.issues.filter((i) => i.severity === "HIGH" || i.severity === "CRITICAL").length;
   const repairRiskRaw = 100
     - majorCount * 30
-    - highSevCount * 12
-    - Math.min(20, repairs.totalExpected / 500);
+    - highSevCount * 10
+    - Math.min(15, repairs.totalExpected / 1000);
   factors.push({
     key: "repairRisk", label: "Repair risk", weight: WEIGHTS.repairRisk,
     value: clamp(repairRiskRaw),

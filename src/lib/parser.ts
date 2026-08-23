@@ -74,6 +74,9 @@ function parseMileage(text: string): number | null {
   return null;
 }
 
+const TRIM_RE =
+  /\b(lx|ex|ex-?l|dx|si|gt|se|sel|le|xle|xlt|limited|touring|sport|base|premium|platinum|denali|trd\s+\w+|s\s?line|amg\s?\d*|m\d|type\s?r|sti|wrx|z71|fx4|titanium|sv|sl|srt)\b/i;
+
 function parseVehicle(text: string): Pick<ParsedListingFields, "year" | "make" | "model" | "trim"> {
   const lower = text.toLowerCase();
 
@@ -91,7 +94,7 @@ function parseVehicle(text: string): Pick<ParsedListingFields, "year" | "make" |
     }
   }
 
-  // Model: word(s) following the make, up to 2 words, skipping filler
+  // Model: word(s) following the make, skipping trim badges and filler
   let model: string | null = null;
   let trim: string | null = null;
   if (make) {
@@ -107,21 +110,23 @@ function parseVehicle(text: string): Pick<ParsedListingFields, "year" | "make" |
         "great", "good", "condition", "new", "used", "the", "this", "with", "and", "in",
         "on", "at", "low", "high", "only", "just", "under", "obo", "firm", "price",
       ]);
+      const trimMatch = lower.match(TRIM_RE);
+      if (trimMatch) trim = trimMatch[1].toUpperCase();
       const modelWords: string[] = [];
-      for (const w of words) {
+      for (let i = 0; i < words.length; i++) {
+        const w = words[i];
         const lw = w.toLowerCase();
         if (filler.has(lw)) break;
         if (/^\d{4}$/.test(lw) && modelWords.length === 0) continue; // stray year
-        if (/^\d+$/.test(lw)) break;
+        if (trim && lw === trim.toLowerCase()) break; // trim badge ends model capture
+        if (TRIM_RE.test(w)) break;
         modelWords.push(w);
-        if (modelWords.length >= 2) break;
+        // Named models carry a series number: "Silverado 1500".
+        const next = words[i + 1];
+        if (next && /^\d{2,4}$/.test(next)) modelWords.push(next);
+        break;
       }
       if (modelWords.length > 0) model = modelWords.join(" ");
-      // Trim: common badges anywhere in text
-      const trimMatch = lower.match(
-        /\b(lx|ex|si|gt|se|le|xle|xlt|limited|touring|sport|base|premium|platinum|denali|trd\s+\w+|s\s?line|amg\s?\d*|m\d|type\s?r|sti|wrx|z71|fx4|titanium|sel|ses|sv|sl|srt)\b/,
-      );
-      if (trimMatch) trim = trimMatch[1].toUpperCase();
     }
   }
 
