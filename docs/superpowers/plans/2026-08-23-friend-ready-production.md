@@ -25,8 +25,8 @@
 - Modify: `src/sources/marketcheck.ts`
 - Test: `tests/sources.test.ts`
 
-- [ ] Fix the existing MarketCheck export/type wiring without removing the user's source tests.
-- [ ] Run `pnpm test tests/sources.test.ts` and `pnpm typecheck`; both must pass before proceeding.
+- [x] Fix the existing MarketCheck export/type wiring without removing the user's source tests.
+- [x] Run `pnpm test tests/sources.test.ts` and `pnpm typecheck`; both must pass before proceeding.
 
 ### Task 2: Add database-backed identity and tenant lifecycle
 
@@ -45,11 +45,11 @@
 - Create: `src/app/api/account/route.ts`
 - Tests: `tests/identity.test.ts`, `tests/auth.test.ts`
 
-- [ ] Add users, sessions, invitations, reset tokens, and preferences with owner/user roles.
-- [ ] Hash passwords and opaque tokens with Node `scrypt`/SHA-256; make tokens single-use and expiry-bound.
-- [ ] Resolve sessions from the database before static-token compatibility.
-- [ ] Add signup, login, logout, invite, reset, and account-deletion route contracts.
-- [ ] Add cross-tenant and role tests before route implementation.
+- [x] Add users, sessions, invitations, reset tokens, and preferences with owner/user roles.
+- [x] Hash passwords and opaque tokens with Node `scrypt`/SHA-256; make tokens single-use and expiry-bound.
+- [x] Resolve sessions from the database before static-token compatibility.
+- [x] Add signup, login, logout, invite, reset, and account-deletion route contracts.
+- [x] Add cross-tenant and role tests before route implementation.
 
 ### Task 3: Add durable jobs, usage ceilings, and provider health
 
@@ -64,10 +64,10 @@
 - Create: `src/app/api/admin/health/route.ts`
 - Tests: `tests/jobs.test.ts`, `tests/usage.test.ts`, `tests/health.test.ts`
 
-- [ ] Implement claim/complete/fail/retry job state transitions with idempotency keys and lock expiry.
-- [ ] Persist daily per-user counters and reject configured ceilings with HTTP 429.
-- [ ] Protect cron with `CRON_SECRET` and expose provider/storage/job health without secrets.
-- [ ] Make source sync enqueueable and safe against duplicate jobs.
+- [x] Implement claim/complete/fail/retry job state transitions with idempotency keys and lock expiry.
+- [x] Persist daily per-user counters and reject configured ceilings with HTTP 429.
+- [x] Protect cron with `CRON_SECRET` and expose provider/storage/job health without secrets.
+- [x] Make source sync enqueueable and safe against duplicate jobs.
 
 ### Task 4: Implement alert preferences and delivery records
 
@@ -80,10 +80,10 @@
 - Create: `src/app/api/preferences/route.ts`
 - Tests: `tests/notifications.test.ts`
 
-- [ ] Add minimum score/margin, delivery mode, quiet hours, and digest preferences.
-- [ ] Preserve in-app alert persistence and record every delivery attempt.
-- [ ] Add an email adapter interface that is disabled unless explicitly configured.
-- [ ] Ensure provider delivery failure never changes the deal decision.
+- [x] Add minimum score/margin, delivery mode, quiet hours, and digest preferences.
+- [x] Preserve in-app alert persistence and record every delivery attempt.
+- [x] Add an email adapter interface that is disabled unless explicitly configured.
+- [x] Ensure provider delivery failure never changes the deal decision.
 
 ### Task 5: Add inspections, offers, missing information, and feedback
 
@@ -100,10 +100,10 @@
 - Modify: `src/app/listings/[id]/actions.tsx`
 - Tests: `tests/missing-information.test.ts`, `tests/offers.test.ts`, `tests/inspections.test.ts`
 
-- [ ] Add deterministic inspection checklist states and recalculate economics after inspection data.
-- [ ] Add asking/target/max-buy/worst-case offer calculations with auditable inputs.
-- [ ] Add missing VIN/title/trim/service-data next actions separate from deal score.
-- [ ] Add feedback capture tied to user, listing, evaluation, and timestamp.
+- [x] Add deterministic inspection checklist states and recalculate economics after inspection data.
+- [x] Add asking/target/max-buy/worst-case offer calculations with auditable inputs.
+- [x] Add missing VIN/title/trim/service-data next actions separate from deal score.
+- [x] Add feedback capture tied to user, listing, evaluation, and timestamp.
 
 ### Task 6: Add uploads, documentation, and acceptance coverage
 
@@ -122,10 +122,10 @@
 - Create: `docs/FRIEND-ACCEPTANCE.md`
 - Create: `tests/acceptance-contract.test.ts`
 
-- [ ] Validate MIME type, extension, byte size, and ownership for photo uploads.
-- [ ] Provide local storage for development and an explicit production storage contract.
-- [ ] Make the phone import path usable at 375px/390px without requiring a terminal.
-- [ ] Document all setup, limitations, degradation paths, and external release gates.
+- [x] Validate MIME type, extension, byte size, and ownership for photo uploads.
+- [x] Provide local storage for development and an explicit production storage contract.
+- [x] Make the phone import path usable at 375px/390px without requiring a terminal.
+- [x] Document all setup, limitations, degradation paths, and external release gates.
 
 ### Task 7: Final verification and audit
 
@@ -134,7 +134,9 @@
 - Create: `docs/RELEASE-GATES.md`
 - Create: `docs/REQUIREMENT-MATRIX.md`
 
-- [ ] Run migrations in a disposable local database.
-- [ ] Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
-- [ ] Confirm no secrets appear in tracked files and no cross-user route is unscoped.
-- [ ] Map every checklist item to repository evidence or an external/human-only gate.
+- [x] Run migrations in a disposable local database.
+- [x] Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`.
+- [x] Confirm no secrets appear in tracked files and no cross-user route is unscoped.
+- [x] Map every checklist item to repository evidence or an external/human-only gate.
+
+The repository-complete work is verified. Hosted deployment, live licensed-provider credentials, production object storage, backup/restore evidence, monitoring provisioning, and friend acceptance remain explicitly external gates in `docs/RELEASE-GATES.md`.

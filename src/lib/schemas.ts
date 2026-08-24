@@ -15,6 +15,8 @@ export const profileInput = z.object({
   priceMin: z.number().min(0).nullable().optional().default(null),
   priceMax: z.number().min(0).nullable().optional().default(null),
   maxAskingRatio: z.number().min(0.1).max(1).default(0.7),
+  requireKbbReference: z.boolean().default(true),
+  maxAllInRatio: z.number().min(0.1).max(1.5).default(0.8),
   requireCleanTitle: z.boolean().default(true),
   requireRepairEvidence: z.boolean().default(true),
   allowedRepairCategories: z.array(z.enum(REPAIR_CATEGORIES)).default([]),
@@ -30,6 +32,7 @@ export type ProfileInput = z.infer<typeof profileInput>;
 export const manualIngestInput = z.object({
   pastedText: z.string().max(20_000).optional(),
   url: z.string().url().optional(),
+  kbbGoodValue: z.number().min(100).max(1_000_000).optional(),
   screenshotNotes: z.array(z.string().max(500)).max(20).optional(),
   photoNotes: z.array(z.string().max(500)).max(20).optional(),
   overrides: z
@@ -63,7 +66,7 @@ export const titleVerificationInput = z.object({
 });
 
 export const valuationInput = z.object({
-  provider: z.enum(["manual-kbb-entry", "comps", "licensed-kbb"]),
+  provider: z.enum(["manual-kbb-entry", "comps", "licensed-kbb", "marketcheck-price"]),
   referenceGoodValue: z.number().min(100).max(1_000_000).optional(),
   comps: z
     .array(
@@ -102,6 +105,26 @@ export const outcomeInput = z.object({
       soldPrice: z.number().min(0).nullable().optional(),
     })
     .optional(),
+});
+
+export const inspectionInput = z.object({
+  status: z.enum(["SCHEDULED", "IN_PROGRESS", "PASSED", "FAILED", "CANCELLED"]),
+  scheduledAt: z.string().datetime().nullable().optional(),
+  findings: z.array(z.string().min(1).max(500)).max(100).default([]),
+  notes: z.string().max(2000).optional(),
+});
+
+export const offerInput = z.object({
+  amount: z.number().positive().max(1_000_000),
+  status: z.enum(["DRAFT", "SENT", "COUNTERED", "ACCEPTED", "DECLINED", "EXPIRED"]).default("DRAFT"),
+  notes: z.string().max(2000).optional(),
+  respondedAt: z.string().datetime().nullable().optional(),
+});
+
+export const interactionInput = z.object({
+  type: z.enum(["MESSAGE", "CALL", "MEETING", "QUESTION", "OTHER"]),
+  body: z.string().min(1).max(4000),
+  occurredAt: z.string().datetime().optional(),
 });
 
 export const listingPatchInput = z.object({

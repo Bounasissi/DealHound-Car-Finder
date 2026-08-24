@@ -13,7 +13,7 @@ import type {
   TitleState,
   VinConfidence,
 } from "./types";
-import { TITLE_STATE_RANK } from "./types";
+import { isAuthoritativeCleanTitle } from "./title";
 
 export const DEAL_SCORE_FORMULA_VERSION = "deal-score-v1";
 
@@ -65,7 +65,7 @@ export function computeDealScore(input: ScoringInput): DealScore {
   for (const f of fraud.flags) {
     if (f.severity === "CRITICAL") rejectionReasons.push(`Critical fraud flag: ${f.label}`);
   }
-  if (requireCleanTitle && TITLE_STATE_RANK[titleState] < TITLE_STATE_RANK.HISTORY_CLEAN) {
+  if (requireCleanTitle && !isAuthoritativeCleanTitle(titleState)) {
     rejectionReasons.push(
       `Clean title required but state is ${titleState} (needs HISTORY_CLEAN or better)`,
     );
@@ -135,8 +135,14 @@ export function computeDealScore(input: ScoringInput): DealScore {
   }
 
   // --- Factor: title/history ----------------------------------------------
-  const titleRank = TITLE_STATE_RANK[titleState];
-  const titleValue = [0, 35, 70, 88, 100][titleRank];
+  const titleValueByState: Record<TitleState, number> = {
+    UNKNOWN: 0,
+    SELLER_CLAIMS_CLEAN: 35,
+    HISTORY_CLEAN: 70,
+    DOCUMENT_REVIEWED: 50,
+    VERIFIED: 100,
+  };
+  const titleValue = titleValueByState[titleState];
   factors.push({
     key: "titleHistory", label: "Title & history confidence", weight: WEIGHTS.titleHistory,
     value: titleValue, evidence: `Title state ${titleState}`,

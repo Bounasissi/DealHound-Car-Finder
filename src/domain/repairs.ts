@@ -258,6 +258,8 @@ function extractContext(text: string, snippet: string, radius = 60): string {
 
 export interface SummarizeOptions {
   rejectedCategories?: RepairCategory[];
+  /** Optional allowlist. When non-empty, every other detected category is rejected. */
+  allowedCategories?: RepairCategory[];
 }
 
 /** Aggregate issues into totals + rejection info against profile rules. */
@@ -266,6 +268,10 @@ export function summarizeRepairs(
   opts: SummarizeOptions = {},
 ): RepairEstimateSummary {
   const rejectedSet = new Set(opts.rejectedCategories ?? []);
+  const allowedSet = new Set(opts.allowedCategories ?? []);
+  if (allowedSet.size > 0) {
+    for (const issue of issues) if (!allowedSet.has(issue.category)) rejectedSet.add(issue.category);
+  }
   const totalLow = Math.round(issues.reduce((s, i) => s + i.estimateLow, 0));
   const totalExpected = Math.round(issues.reduce((s, i) => s + i.estimateExpected, 0));
   const totalHigh = Math.round(issues.reduce((s, i) => s + i.estimateHigh, 0));

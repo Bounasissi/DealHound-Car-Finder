@@ -169,10 +169,16 @@ describe("test-only inventory fixture adapter", () => {
 
 describe("free import paths", () => {
   it("parses a user-provided CSV without network access", () => {
-    const rows = parseCsvListings('title,price,mileage,year,make,model,location\n"2015 Honda Accord",11500,98000,2015,Honda,Accord,"Mount Laurel, NJ"');
+    const rows = parseCsvListings('title,price,kbbGoodValue,mileage,year,make,model,location\n"2015 Honda Accord",11500,15500,98000,2015,Honda,Accord,"Mount Laurel, NJ"');
     expect(rows).toHaveLength(1);
     expect(rows[0].overrides?.price).toBe(11500);
+    expect(rows[0].kbbGoodValue).toBe(15500);
     expect(rows[0].overrides?.location).toBe("Mount Laurel, NJ");
+  });
+
+  it("ignores out-of-range CSV reference values instead of persisting them", () => {
+    const rows = parseCsvListings("title,price,kbbGoodValue\nHonda Accord,8000,99");
+    expect(rows[0].kbbGoodValue).toBeUndefined();
   });
 });
 
@@ -197,5 +203,11 @@ describe("matchesProfile", () => {
     expect(matchesProfile(l, defaultProfile({ yearMin: 2017 }))).toBe(false);
     expect(matchesProfile(l, defaultProfile({ make: "Honda" }))).toBe(false);
     expect(matchesProfile(l, defaultProfile({ model: "Accord" }))).toBe(false);
+  });
+
+  it("enforces trim when a profile specifies one", () => {
+    const l = rawListing({ trim: "LE" });
+    expect(matchesProfile(l, defaultProfile({ trim: "LE" }))).toBe(true);
+    expect(matchesProfile(l, defaultProfile({ trim: "XSE" }))).toBe(false);
   });
 });

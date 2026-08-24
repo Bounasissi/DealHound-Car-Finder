@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 CREATE UNIQUE INDEX IF NOT EXISTS password_reset_token_hash_unique ON password_reset_tokens (token_hash);
 
 CREATE TABLE IF NOT EXISTS user_preferences (
-  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  user_id text PRIMARY KEY,
   minimum_score integer NOT NULL DEFAULT 75,
   minimum_margin numeric(12, 2) NOT NULL DEFAULT 2000,
   delivery_mode text NOT NULL DEFAULT 'IMMEDIATE',

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveTitleState,
   evaluateHardRejects,
+  isAuthoritativeCleanTitle,
   normalizeBrands,
   parseTitleClaims,
   satisfiesCleanTitleRequirement,
@@ -88,14 +89,28 @@ describe("evaluateHardRejects", () => {
     };
     expect(evaluateHardRejects(history, [], false).rejected).toBe(false);
   });
+
+  it("hard-rejects an explicit branded-title seller claim even without provider history", () => {
+    const claims = parseTitleClaims("salvage title, rebuilt after flood damage");
+    const result = evaluateHardRejects(null, claims, false);
+    expect(result.rejected).toBe(true);
+    expect(result.reasons.join(" ")).toContain("SALVAGE");
+  });
 });
 
 describe("satisfiesCleanTitleRequirement", () => {
-  it("requires HISTORY_CLEAN or better when required", () => {
+  it("requires authoritative history when clean title is required", () => {
     expect(satisfiesCleanTitleRequirement("UNKNOWN", true)).toBe(false);
     expect(satisfiesCleanTitleRequirement("SELLER_CLAIMS_CLEAN", true)).toBe(false);
     expect(satisfiesCleanTitleRequirement("HISTORY_CLEAN", true)).toBe(true);
+    expect(satisfiesCleanTitleRequirement("DOCUMENT_REVIEWED", true)).toBe(false);
     expect(satisfiesCleanTitleRequirement("VERIFIED", true)).toBe(true);
+  });
+
+  it("distinguishes document review from authoritative history", () => {
+    expect(isAuthoritativeCleanTitle("DOCUMENT_REVIEWED")).toBe(false);
+    expect(isAuthoritativeCleanTitle("HISTORY_CLEAN")).toBe(true);
+    expect(isAuthoritativeCleanTitle("VERIFIED")).toBe(true);
   });
   it("skips check when not required", () => {
     expect(satisfiesCleanTitleRequirement("UNKNOWN", false)).toBe(true);

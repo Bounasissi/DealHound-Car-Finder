@@ -234,9 +234,14 @@ export interface CompSale {
   observedAt: string;
 }
 
+export const VALUATION_BASES = ["KBB_GOOD", "COMPARABLES", "MARKET_PROXY", "UNKNOWN"] as const;
+export type ValuationBasis = (typeof VALUATION_BASES)[number];
+
 export interface ValuationResult {
   provider: string;
-  /** KBB-equivalent "Good" condition private-party reference value. */
+  /** Provenance class; legacy rows may omit this and are inferred conservatively. */
+  basis?: ValuationBasis;
+  /** Provider reference value used for ratio decisions; notes identify KBB vs proxy provenance. */
   referenceGoodValue: number;
   compMedian: number | null;
   compRange: [number, number] | null;
@@ -250,6 +255,7 @@ export interface ValuationBundle {
   /** Conservative chosen reference (lowest credible). */
   referenceGoodValue: number;
   chosenProvider: string;
+  chosenBasis: ValuationBasis;
   askingRatio: number | null; // asking / reference
   discountAmount: number | null;
   discountPct: number | null;
@@ -386,6 +392,10 @@ export interface SearchProfile {
   priceMax: number | null;
   /** Gate A: max asking/reference ratio. Default 0.70. */
   maxAskingRatio: number;
+  /** Require the literal KBB Good benchmark for qualification; proxy values remain exploratory. */
+  requireKbbReference?: boolean;
+  /** Gate B: max expected all-in / conservative finished value ratio. */
+  maxAllInRatio: number;
   requireCleanTitle: boolean;
   /** Only surface/evaluate listings with explicit repair evidence. */
   requireRepairEvidence: boolean;
@@ -472,6 +482,8 @@ export interface DealEvaluationInput {
   userIssues: RepairIssue[]; // manually added/confirmed issues
   transactionCosts: TransactionCostInputs;
   liquidityHint?: { comparableCount: number };
+  /** Number of other active records sharing the canonical dedup key. */
+  duplicateCount?: number;
 }
 
 export interface DealEvaluation {

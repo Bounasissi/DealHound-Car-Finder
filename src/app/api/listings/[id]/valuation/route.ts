@@ -1,5 +1,5 @@
 import { jsonError, jsonOk, withApi } from "@/lib/api";
-import { CompsProvider, ManualKbbProvider, buildValuationBundle, configuredLicensedKbbProvider } from "@/domain/valuation";
+import { CompsProvider, ManualKbbProvider, MarketCheckPriceProvider, buildValuationBundle, configuredLicensedKbbProvider, configuredMarketCheckPriceProvider } from "@/domain/valuation";
 import { valuationInput } from "@/lib/schemas";
 import { evaluateAndStore } from "@/lib/evaluate";
 import { addValuation, getListing } from "@/lib/repo";
@@ -27,6 +27,16 @@ export const POST = withApi<Ctx>("listings.valuation", async (req, { params }) =
       return jsonError(503, error instanceof Error ? error.message : "Licensed valuation provider failed", { retryable: true });
     }
     if (!result) throw new Error("Licensed valuation provider is unavailable or returned no credible value");
+  } else if (body.provider === "marketcheck-price") {
+    const configured = configuredMarketCheckPriceProvider();
+    const provider = configured.isConfigured() ? configured : new MarketCheckPriceProvider({ apiKey: "" });
+    if (!provider.isConfigured()) return jsonError(503, "MarketCheck predicted-value provider is not enabled/configured", { retryable: true });
+    try {
+      result = await provider.getReferenceValue({ listing });
+    } catch (error) {
+      return jsonError(503, error instanceof Error ? error.message : "MarketCheck predicted-value provider failed", { retryable: true });
+    }
+    if (!result) throw new Error("MarketCheck requires a valid VIN and a five-digit listing/configured ZIP");
   } else if (body.provider === "manual-kbb-entry") {
     if (!body.referenceGoodValue) throw new Error("referenceGoodValue required for manual KBB entry");
     const provider = new ManualKbbProvider(() => body.referenceGoodValue!);

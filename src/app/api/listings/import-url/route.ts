@@ -4,11 +4,15 @@ import { buildManualListing, fetchAllowlistedListingUrl } from "@/sources";
 import { normalizeListing } from "@/domain/normalize";
 import { evaluateAndStore } from "@/lib/evaluate";
 import { upsertListing } from "@/lib/repo";
+import { currentUserId } from "@/lib/auth";
+import { consumePersistentUsage, UsageLimitError } from "@/lib/usage";
 
 export const runtime = "nodejs";
 
 export const POST = withApi("listings.allowlistedUrlImport", async (req) => {
   const { url } = allowlistedUrlImportInput.parse(await req.json());
+  const usage = await consumePersistentUsage(currentUserId(), "listingImports");
+  if (!usage.allowed) throw new UsageLimitError("listingImports", usage.count, usage.limit);
   try {
     const input = await fetchAllowlistedListingUrl(url);
     const normalized = normalizeListing(buildManualListing(input));

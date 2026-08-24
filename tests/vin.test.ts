@@ -75,6 +75,14 @@ describe("vinConfidenceFor", () => {
     expect(vinConfidenceFor(VIN_CAMRY, base)).toBe("DECODED_MATCH");
     expect(vinConfidenceFor(VIN_CAMRY, { ...base, mismatches: ["Year conflict"] })).toBe("DECODED_MISMATCH");
   });
+
+  it("does not treat a provider outage fallback as a decoded match", () => {
+    const outage = {
+      vin: VIN_CAMRY, valid: true, attributes: emptyAttributes(),
+      matchConfidence: 0.4, mismatches: [], decodedAt: "now", source: "manual" as const,
+    };
+    expect(vinConfidenceFor(VIN_CAMRY, outage)).toBe("PROVIDED_UNVERIFIED");
+  });
 });
 
 describe("decodeVin", () => {

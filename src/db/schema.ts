@@ -50,7 +50,7 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
 }, (table) => ({ tokenUnique: uniqueIndex("password_reset_token_hash_unique").on(table.tokenHash) }));
 
 export const userPreferences = pgTable("user_preferences", {
-  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  userId: text("user_id").primaryKey(),
   minimumScore: integer("minimum_score").notNull().default(75),
   minimumMargin: numeric("minimum_margin", { precision: 12, scale: 2 }).notNull().default("2000"),
   deliveryMode: text("delivery_mode").notNull().default("IMMEDIATE"),
@@ -59,6 +59,32 @@ export const userPreferences = pgTable("user_preferences", {
   email: text("email"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const jobs = pgTable("jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  kind: text("kind").notNull(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  payload: jsonb("payload").notNull(),
+  state: text("state").notNull().default("QUEUED"),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  retryAt: timestamp("retry_at", { withTimezone: true }),
+  lockedBy: text("locked_by"),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ idempotencyUnique: uniqueIndex("jobs_owner_idempotency_unique").on(table.ownerId, table.idempotencyKey) }));
+
+export const usageCounters = pgTable("usage_counters", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  day: text("day").notNull(),
+  metric: text("metric").notNull(),
+  count: integer("count").notNull().default(0),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ usageUnique: uniqueIndex("usage_owner_day_metric_unique").on(table.ownerId, table.day, table.metric) }));
 
 export const searchProfiles = pgTable("search_profiles", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -75,6 +101,8 @@ export const searchProfiles = pgTable("search_profiles", {
   priceMin: numeric("price_min", { precision: 10, scale: 2 }),
   priceMax: numeric("price_max", { precision: 10, scale: 2 }),
   maxAskingRatio: numeric("max_asking_ratio", { precision: 5, scale: 4 }).notNull().default("0.7000"),
+  requireKbbReference: boolean("require_kbb_reference").notNull().default(true),
+  maxAllInRatio: numeric("max_all_in_ratio", { precision: 5, scale: 4 }).notNull().default("0.8000"),
   requireCleanTitle: boolean("require_clean_title").notNull().default(true),
   requireRepairEvidence: boolean("require_repair_evidence").notNull().default(true),
   allowedRepairCategories: jsonb("allowed_repair_categories").$type<string[]>().notNull().default([]),
@@ -132,6 +160,7 @@ export const valuations = pgTable("valuations", {
   ownerId: text("owner_id").notNull().default("primary"),
   listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
   provider: text("provider").notNull(),
+  basis: text("basis").notNull().default("UNKNOWN"),
   referenceGoodValue: numeric("reference_good_value", { precision: 10, scale: 2 }).notNull(),
   compMedian: numeric("comp_median", { precision: 10, scale: 2 }),
   compRangeLow: numeric("comp_range_low", { precision: 10, scale: 2 }),
@@ -205,6 +234,17 @@ export const alerts = pgTable("alerts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({ alertKeyUnique: uniqueIndex("alerts_owner_key_unique").on(table.ownerId, table.alertKey) }));
 
+export const notificationDeliveries = pgTable("notification_deliveries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  alertId: uuid("alert_id").notNull().references(() => alerts.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull(),
+  status: text("status").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const outcomes = pgTable("outcomes", {
   id: uuid("id").defaultRandom().primaryKey(),
   ownerId: text("owner_id").notNull().default("primary"),
@@ -221,8 +261,68 @@ export const outcomes = pgTable("outcomes", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const inspections = pgTable("inspections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
+  listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
+  status: text("status").notNull().default("SCHEDULED"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  findings: jsonb("findings").$type<string[]>().notNull().default([]),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ ownerListingUnique: uniqueIndex("inspections_owner_listing_unique").on(table.ownerId, table.listingId) }));
+
+export const offers = pgTable("offers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
+  listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
+  amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("DRAFT"),
+  notes: text("notes"),
+  madeAt: timestamp("made_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  targetPurchasePrice: numeric("target_purchase_price", { precision: 12, scale: 2 }),
+  maximumPurchasePrice: numeric("maximum_purchase_price", { precision: 12, scale: 2 }),
+  expectedMarginAtAsking: numeric("expected_margin_at_asking", { precision: 12, scale: 2 }),
+  expectedMarginAtOffer: numeric("expected_margin_at_offer", { precision: 12, scale: 2 }),
+  worstCaseMarginAtAsking: numeric("worst_case_margin_at_asking", { precision: 12, scale: 2 }),
+  worstCaseMarginAtOffer: numeric("worst_case_margin_at_offer", { precision: 12, scale: 2 }),
+  payload: jsonb("payload"),
+});
+
+export const sellerInteractions = pgTable("seller_interactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull().default("primary"),
+  listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  body: text("body").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const vinCache = pgTable("vin_cache", {
   vin: text("vin").primaryKey(),
   decoded: jsonb("decoded").notNull(),
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inspectionItems = pgTable("inspection_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  inspectionId: uuid("inspection_id").notNull().references(() => inspections.id, { onDelete: "cascade" }),
+  code: text("code").notNull(),
+  label: text("label").notNull(),
+  result: text("result").notNull().default("NOT_CHECKED"),
+  note: text("note"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+}, (table) => ({ codeUnique: uniqueIndex("inspection_items_code_unique").on(table.inspectionId, table.code) }));
+
+export const listingFeedback = pgTable("listing_feedback", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  listingId: uuid("listing_id").notNull().references(() => listings.id, { onDelete: "cascade" }),
+  evaluationId: uuid("evaluation_id").references(() => evaluations.id, { onDelete: "set null" }),
+  category: text("category").notNull(),
+  message: text("message").notNull(),
+  snapshot: jsonb("snapshot"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

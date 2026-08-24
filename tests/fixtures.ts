@@ -28,6 +28,8 @@ export function defaultProfile(overrides: Partial<SearchProfile> = {}): SearchPr
     priceMin: null,
     priceMax: null,
     maxAskingRatio: 0.7,
+    requireKbbReference: true,
+    maxAllInRatio: 0.8,
     requireCleanTitle: true,
     requireRepairEvidence: true,
     allowedRepairCategories: [],

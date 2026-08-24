@@ -437,6 +437,8 @@ KBB currently offers its **InfoDriver Web Service** for incorporating KBB values
 
 However, KBB's licensing terms govern how its output and trademarks may be displayed or reused. ([Cox Automotive Inc.][7])
 
+Therefore, the default qualifying deal lane uses a manually supplied or licensed KBB Good value. MarketCheck and comparable values are retained as clearly labeled exploratory references and do not qualify the default lane.
+
 Therefore:
 
 ### MVP

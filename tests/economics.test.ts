@@ -76,4 +76,14 @@ describe("computeDealEconomics", () => {
     const econ = computeDealEconomics({ askingPrice: 9500, valuation, repairs, config: strict });
     expect(econ!.gateA.passed).toBe(false); // 0.633 > 0.5
   });
+
+  it("uses a stricter configured Gate B threshold when supplied", () => {
+    const valuation = buildValuationBundle([manualValuation(15000)], 9500);
+    const repairs = summarizeRepairs([estimateIssue("TIRES_BRAKES", "MODERATE")]);
+    repairs.totalLow = 500;
+    repairs.totalExpected = 500;
+    repairs.totalHigh = 500;
+    const econ = computeDealEconomics({ askingPrice: 9500, valuation, repairs, config: loadConfig({ gateBRatio: 0.6 }) });
+    expect(econ!.gateB.passed).toBe(false);
+  });
 });

@@ -43,6 +43,16 @@ describe("evaluateListing — end to end", () => {
     expect(result.score.rejectionReasons.some((r) => r.includes("Rejected repair categories"))).toBe(true);
   });
 
+  it("treats repairs outside an allowlist as rejected categories", () => {
+    const listing = normalizedListing({ description: "Needs tires and the A/C blows warm." });
+    const result = evaluateListing(evalInput({
+      listing,
+      profile: { ...evalInput().profile, allowedRepairCategories: ["TIRES_BRAKES"] },
+    }));
+    expect(result.repairs.rejectedCategories).toContain("HVAC");
+    expect(result.score.rejectionReasons.some((r) => r.includes("HVAC"))).toBe(true);
+  });
+
   it("requires repair evidence when the search profile is repair-focused", () => {
     const listing = normalizedListing({
       description: "2016 Toyota Camry LE. Clean title, runs and drives, $9,500.",
@@ -53,11 +63,41 @@ describe("evaluateListing — end to end", () => {
     expect(result.score.rejectionReasons.some((reason) => reason.includes("repair evidence"))).toBe(true);
   });
 
+  it("requires KBB Good provenance by default but allows explicit exploratory proxy mode", () => {
+    const proxyValuation = {
+      provider: "marketcheck-price",
+      basis: "MARKET_PROXY" as const,
+      referenceGoodValue: 15000,
+      compMedian: null,
+      compRange: null,
+      confidence: 0.7,
+      notes: "proxy",
+      computedAt: "2026-08-24T12:00:00.000Z",
+    };
+    const strict = evaluateListing(evalInput({ valuations: [proxyValuation] }));
+    expect(strict.hardRejected).toBe(true);
+    expect(strict.score.rejectionReasons.some((reason) => reason.includes("requires KBB Good valuation"))).toBe(true);
+
+    const exploratory = evaluateListing(evalInput({
+      valuations: [proxyValuation],
+      profile: { ...evalInput().profile, requireKbbReference: false },
+    }));
+    expect(exploratory.hardRejected).toBe(false);
+  });
+
   it("overpriced listing fails Gate A and scores lower", () => {
     const listing = normalizedListing({ price: 13500 }); // ratio .9
     const result = evaluateListing(evalInput({ listing }));
     expect(result.economics!.gateA.passed).toBe(false);
     expect(result.score.total).toBeLessThan(70);
+  });
+
+  it("applies the active profile's all-in ratio threshold", () => {
+    const result = evaluateListing(evalInput({
+      profile: { ...evalInput().profile, maxAllInRatio: 0.6 },
+    }));
+    expect(result.economics!.gateB.passed).toBe(false);
+    expect(result.score.rejectionReasons.some((reason) => reason.includes("Gate B failed"))).toBe(true);
   });
 
   it("no valuation → economics null + rejection reason", () => {
@@ -89,6 +129,11 @@ describe("evaluateListing — end to end", () => {
     const b = evaluateListing(evalInput());
     expect(a.score.total).toBe(b.score.total);
     expect(a.economics!.expectedAllInBasis).toBe(b.economics!.expectedAllInBasis);
+  });
+
+  it("carries duplicate evidence into the fraud assessment", () => {
+    const result = evaluateListing(evalInput({ duplicateCount: 2 }));
+    expect(result.fraud.flags.some((flag) => flag.code === "DUPLICATE_LISTING")).toBe(true);
   });
 
   it("full payload is JSON-serializable for audit storage", () => {

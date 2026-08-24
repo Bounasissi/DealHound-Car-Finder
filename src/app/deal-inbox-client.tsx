@@ -2,26 +2,33 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { TITLE_STATE_RANK } from "@/domain/types";
+import { isAuthoritativeCleanTitle } from "@/domain/title";
 import { CLASS_STYLES, money, pct } from "@/lib/format";
 import { filterDeals, type DealFilter, type DealInboxItem } from "@/lib/deal-filters";
 
-const DEFAULT_FILTER: DealFilter = {
-  query: "",
+type InboxProfileDefaults = Pick<DealFilter, "maxAskingRatio" | "title" | "needsWork" | "maxExpectedRepairs">;
+
+const DEFAULT_PROFILE_DEFAULTS: InboxProfileDefaults = {
   maxAskingRatio: 0.7,
   title: "history-clean",
   needsWork: true,
   maxExpectedRepairs: null,
-  minScore: null,
-  sort: "best",
 };
 
 const inputClass = "w-full rounded-xl border border-[#d9d4ca] bg-[#fbfaf7] px-3 py-2.5 text-sm text-[#1d2924] outline-none transition placeholder:text-[#9a9e96] focus:border-[#284d40] focus:ring-2 focus:ring-[#284d40]/10";
 
-export default function DealInboxClient({ initialItems }: { initialItems: DealInboxItem[] }) {
-  const [filter, setFilter] = useState<DealFilter>(DEFAULT_FILTER);
+export default function DealInboxClient({ initialItems, profileDefaults }: { initialItems: DealInboxItem[]; profileDefaults?: InboxProfileDefaults }) {
+  const defaults = profileDefaults ?? DEFAULT_PROFILE_DEFAULTS;
+  const defaultFilter = useMemo<DealFilter>(() => ({
+    query: "",
+    ...defaults,
+    includeHardRejected: false,
+    minScore: null,
+    sort: "best",
+  }), [defaults]);
+  const [filter, setFilter] = useState<DealFilter>(() => defaultFilter);
   const visibleItems = useMemo(() => filterDeals(initialItems, filter), [initialItems, filter]);
-  const cleanCount = initialItems.filter((item) => (item.titleState ? TITLE_STATE_RANK[item.titleState] >= TITLE_STATE_RANK.HISTORY_CLEAN : false)).length;
+  const cleanCount = initialItems.filter((item) => item.titleState ? isAuthoritativeCleanTitle(item.titleState) : false).length;
   const repairCount = initialItems.filter((item) => item.hasRepairEvidence).length;
   const averageDiscount = average(initialItems.map((item) => item.discountPct));
 
@@ -30,7 +37,7 @@ export default function DealInboxClient({ initialItems }: { initialItems: DealIn
   }
 
   function resetFilters() {
-    setFilter(DEFAULT_FILTER);
+    setFilter(defaultFilter);
   }
 
   return (
@@ -57,7 +64,7 @@ export default function DealInboxClient({ initialItems }: { initialItems: DealIn
       </section>
 
       <section className="grid gap-3 sm:grid-cols-4">
-        <Stat label="Qualified now" value={String(visibleItems.length)} detail={`of ${initialItems.length} imported`} tone="green" />
+        <Stat label={filter.includeHardRejected ? "Visible listings" : "Qualified now"} value={String(visibleItems.length)} detail={`of ${initialItems.length} imported`} tone="green" />
         <Stat label="Avg. discount" value={averageDiscount === null ? "—" : `${Math.round(averageDiscount)}%`} detail="vs Good reference" tone="lime" />
         <Stat label="History-clean" value={String(cleanCount)} detail="needs verification before purchase" tone="cream" />
         <Stat label="Repair candidates" value={String(repairCount)} detail="explicit issue evidence" tone="cream" />
@@ -89,7 +96,7 @@ export default function DealInboxClient({ initialItems }: { initialItems: DealIn
           <label className="block">
             <span className="field-label">Title evidence</span>
             <select value={filter.title} onChange={(event) => updateFilter({ title: event.target.value as DealFilter["title"] })} className={inputClass}>
-              <option value="history-clean">History-clean+</option>
+              <option value="history-clean">History-verified</option>
               <option value="seller-claim">Seller claims clean</option>
               <option value="any">Any title state</option>
             </select>
@@ -110,6 +117,10 @@ export default function DealInboxClient({ initialItems }: { initialItems: DealIn
             Needs work / repair evidence
           </label>
           <label className="flex items-center gap-2 text-sm text-[#657066]">
+            <input type="checkbox" checked={filter.includeHardRejected} onChange={(event) => updateFilter({ includeHardRejected: event.target.checked })} className="h-4 w-4 accent-[#8a3b2c]" />
+            Show hard rejects
+          </label>
+          <label className="flex items-center gap-2 text-sm text-[#657066]">
             <span>Max repairs</span>
             <input value={filter.maxExpectedRepairs ?? ""} onChange={(event) => updateFilter({ maxExpectedRepairs: event.target.value ? Number(event.target.value) : null })} className="w-24 rounded-lg border border-[#d9d4ca] bg-[#fbfaf7] px-2.5 py-1.5 text-sm" inputMode="numeric" placeholder="Any" />
           </label>
@@ -124,7 +135,12 @@ export default function DealInboxClient({ initialItems }: { initialItems: DealIn
       {initialItems.length === 0 ? (
         <EmptyState title="Your radar is empty" body="Paste a Facebook Marketplace listing or import a CSV to start evaluating deals." action="Add your first listing" />
       ) : visibleItems.length === 0 ? (
-        <EmptyState title="No deals in this lane" body="Try widening the ratio or title filter, or reset the controls to see every imported listing." action="Reset filters" onAction={resetFilters} />
+        <EmptyState
+          title="No deals in this lane"
+          body={filter.includeHardRejected ? "Try widening the ratio, title, repair, or score filters." : "Try widening the filters, or show hard rejects to inspect listings blocked by title, fraud, or major-risk rules."}
+          action={filter.includeHardRejected ? "Reset filters" : "Show hard rejects"}
+          onAction={() => filter.includeHardRejected ? resetFilters() : updateFilter({ includeHardRejected: true })}
+        />
       ) : (
         <div className="space-y-3">
           {visibleItems.map((item) => <DealCard key={item.id} item={item} />)}
@@ -138,8 +154,12 @@ export default function DealInboxClient({ initialItems }: { initialItems: DealIn
 
 function DealCard({ item }: { item: DealInboxItem }) {
   const style = item.scoreClass ? CLASS_STYLES[item.scoreClass] : null;
-  const titleLabel = item.titleState === "HISTORY_CLEAN" || item.titleState === "DOCUMENT_REVIEWED" || item.titleState === "VERIFIED" ? "History-clean" : item.titleState === "SELLER_CLAIMS_CLEAN" ? "Seller claims clean" : "Title unknown";
+  const titleLabel = item.titleState === "HISTORY_CLEAN" || item.titleState === "VERIFIED" ? "History-clean" : item.titleState === "DOCUMENT_REVIEWED" ? "Document reviewed" : item.titleState === "SELLER_CLAIMS_CLEAN" ? "Seller claims clean" : "Title unknown";
   const repairLabel = item.repairCount === 1 ? "1 repair signal" : `${item.repairCount} repair signals`;
+  const referenceLabel = item.valuationProvider === "manual-kbb-entry" || item.valuationProvider === "kbb-licensed"
+    ? "KBB Good"
+    : item.valuationProvider === "marketcheck-price" ? "MarketCheck proxy" : "Good reference";
+  const basisWarning = item.valuationBasis && item.valuationBasis !== "KBB_GOOD";
 
   return (
     <article className="group rounded-[1.5rem] border border-[#ded9cf] bg-[#fffdf8] p-5 shadow-[0_10px_30px_rgba(45,40,30,0.04)] transition hover:-translate-y-0.5 hover:border-[#aabfa2] hover:shadow-[0_16px_40px_rgba(45,40,30,0.08)] sm:p-6">
@@ -159,14 +179,15 @@ function DealCard({ item }: { item: DealInboxItem }) {
 
       <div className="mt-5 grid gap-3 sm:grid-cols-4">
         <Metric label="Asking" value={money(item.price)} detail="Marketplace" />
-        <Metric label="Good reference" value={money(item.referenceValue)} detail="planning value" />
-        <Metric label="Ask / reference" value={pct(item.askingRatio)} detail={item.discountPct === null ? "discount unknown" : `${Math.round(item.discountPct)}% below`} accent />
+        <Metric label={referenceLabel} value={money(item.referenceValue)} detail="planning value" />
+        <Metric label="Ask / reference" value={pct(item.askingRatio)} detail={item.discountPct === null ? "discount unknown" : `${Math.round(item.discountPct)}% below · ${referenceLabel}`} accent />
         <Metric label="Expected repairs" value={money(item.repairExpected)} detail={repairLabel} />
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-[#ece8df] pt-4">
         <span className="rounded-full bg-[#e5f1dc] px-3 py-1.5 text-xs font-semibold text-[#35604d]">{titleLabel}</span>
         {item.hasRepairEvidence && <span className="rounded-full bg-[#f5ead1] px-3 py-1.5 text-xs font-semibold text-[#7b5b20]">Needs work</span>}
+        {basisWarning && <span className="rounded-full bg-[#f8d9d1] px-3 py-1.5 text-xs font-semibold text-[#8a3b2c]">Not KBB-qualified</span>}
         {item.expectedMargin !== null && <span className={`rounded-full px-3 py-1.5 text-xs font-semibold ${item.expectedMargin >= 0 ? "bg-[#e6f0e7] text-[#35604d]" : "bg-[#f8d9d1] text-[#8a3b2c]"}`}>{money(item.expectedMargin)} expected room</span>}
         <Link href={`/listings/${item.id}`} className="ml-auto rounded-full bg-[#19392f] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2c5747]">Open deal →</Link>
       </div>

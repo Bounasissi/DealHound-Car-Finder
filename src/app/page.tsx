@@ -8,7 +8,11 @@ export const dynamic = "force-dynamic";
 
 export default async function DealInbox() {
   return withServerAuth(async () => {
-    const listings = await listListings({ profile: (await getActiveProfile()) ?? undefined, sort: "recent" });
+    // The inbox filters are applied after evaluation in the client. Load the
+    // complete owner-scoped set so a qualified listing cannot be hidden after
+    // the first pagination window.
+    const activeProfile = await getActiveProfile();
+    const listings = await listListings({ profile: activeProfile ?? undefined, sort: "recent", pageSize: "all" });
     const items: DealInboxItem[] = await Promise.all(
       listings.map(async (l) => {
       const ev = await latestEvaluation(l.id!);
@@ -25,9 +29,13 @@ export default async function DealInbox() {
         scoreClass: ev?.score.scoreClass ?? null,
         askingRatio: ev?.economics?.askingRatio ?? null,
         referenceValue: ev?.valuation.referenceGoodValue ?? null,
+        valuationProvider: ev?.valuation.chosenProvider ?? null,
+        valuationBasis: ev?.valuation.chosenBasis ?? null,
         discountPct: ev?.valuation.discountPct ?? null,
         expectedMargin: ev?.economics?.expectedMargin ?? null,
-        titleState: l.titleState,
+        // The evaluation carries the authoritative history-provider state;
+        // the listing row may still contain the original seller-claim state.
+        titleState: ev?.titleState ?? l.titleState,
         stage: l.workflowStage ?? "FOUND",
         hardRejected: ev?.hardRejected ?? false,
         repairExpected: ev?.repairs.totalExpected ?? null,
@@ -41,6 +49,16 @@ export default async function DealInbox() {
       }),
     );
 
-    return <DealInboxClient initialItems={items} />;
+    return (
+      <DealInboxClient
+        initialItems={items}
+        profileDefaults={activeProfile ? {
+          maxAskingRatio: activeProfile.maxAskingRatio,
+          title: activeProfile.requireCleanTitle ? "history-clean" : "any",
+          needsWork: activeProfile.requireRepairEvidence,
+          maxExpectedRepairs: activeProfile.maxExpectedRepairs,
+        } : undefined}
+      />
+    );
   });
 }

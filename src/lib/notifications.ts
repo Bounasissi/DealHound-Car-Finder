@@ -1,6 +1,10 @@
 import { loadConfig } from "@/domain/config";
 import { log } from "./logger";
 
+export interface EmailDeliveryResult extends DeliveryResult {
+  channel: "email";
+}
+
 export interface DeliveryResult {
   status: "DELIVERED" | "SKIPPED" | "FAILED";
   attempts: number;
@@ -26,4 +30,19 @@ export async function deliverAlert(payload: unknown): Promise<DeliveryResult> {
   }
   log.error("alert.delivery_failed", { error: lastError instanceof Error ? lastError.message : String(lastError), attempts: 3 });
   return { status: "FAILED", attempts: 3, error: lastError instanceof Error ? lastError.message : String(lastError) };
+}
+
+/** Optional Resend-compatible delivery; credentials are never sent to the browser. */
+export async function deliverEmailAlert(input: { to: string; subject: string; text: string }): Promise<EmailDeliveryResult> {
+  const apiKey = process.env.EMAIL_API_KEY ?? process.env.RESEND_API_KEY;
+  const endpoint = process.env.EMAIL_API_URL ?? "https://api.resend.com/emails";
+  const from = process.env.EMAIL_FROM;
+  if (!apiKey || !from) return { channel: "email", status: "SKIPPED", attempts: 0 };
+  try {
+    const response = await fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ from, to: [input.to], subject: input.subject, text: input.text }) });
+    if (!response.ok) throw new Error(`Email provider returned HTTP ${response.status}`);
+    return { channel: "email", status: "DELIVERED", attempts: 1 };
+  } catch (error) {
+    return { channel: "email", status: "FAILED", attempts: 1, error: error instanceof Error ? error.message : String(error) };
+  }
 }

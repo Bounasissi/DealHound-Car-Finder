@@ -29,6 +29,12 @@ describe("parseIssuesFromText", () => {
   it("returns empty for clean text", () => {
     expect(parseIssuesFromText("Perfect condition, nothing wrong")).toHaveLength(0);
   });
+
+  it("does not turn a negated repair statement into an issue", () => {
+    const issues = parseIssuesFromText("Clean title. Does NOT need a transmission and no engine problems.");
+    expect(issues.some((issue) => issue.category === "TRANSMISSION_MAJOR")).toBe(false);
+    expect(issues.some((issue) => issue.category === "ENGINE_MAJOR")).toBe(false);
+  });
 });
 
 describe("inferSeverity", () => {

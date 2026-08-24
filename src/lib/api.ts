@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { log } from "./logger";
-import { authenticate, runWithAuth } from "./auth";
+import { authenticate, authenticateAsync, runWithAuth } from "./auth";
+import { UsageLimitError } from "./usage";
 
 const requestWindows = new Map<string, { startedAt: number; count: number }>();
 
@@ -21,7 +22,8 @@ export function withApi<Ctx = unknown>(
   return async (req: Request, ctx: Ctx): Promise<Response> => {
     const started = Date.now();
     try {
-      const auth = authenticate(req);
+      if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && !sameOrigin(req)) return jsonError(403, "Cross-site request rejected");
+      const auth = await authenticateAsync(req);
       if (auth.error) return jsonError(auth.error.status, auth.error.message);
       const rateKey = auth.context!.userId;
       const now = Date.now();
@@ -33,6 +35,9 @@ export function withApi<Ctx = unknown>(
       log.info("api.request", { route: name, status: res.status, ms: Date.now() - started });
       return res;
     } catch (err) {
+      if (err instanceof UsageLimitError) {
+        return jsonError(err.status, err.message, { metric: err.metric, count: err.count, limit: err.limit });
+      }
       if (err instanceof ZodError) {
         log.warn("api.validation_error", { route: name, issues: err.issues });
         return jsonError(422, "Validation failed", err.issues);
@@ -42,6 +47,11 @@ export function withApi<Ctx = unknown>(
       return jsonError(500, message);
     }
   };
+}
+
+function sameOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  return !origin || origin === new URL(req.url).origin;
 }
 
 function loadRateLimit(): number {

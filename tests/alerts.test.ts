@@ -71,6 +71,40 @@ describe("evaluateAlertRule", () => {
     expect(decision.qualifies).toBe(false);
     expect(decision.failedConditions.some((c) => c.includes("margin"))).toBe(true);
   });
+
+  it("never alerts when Gate B fails even if score and margin look strong", () => {
+    const evaluation = evaluateListing(strongDealInput());
+    evaluation.economics!.bothGatesPassed = false;
+    evaluation.economics!.gateB = { passed: false, detail: "all-in ratio too high" };
+    const decision = evaluateAlertRule(evaluation, profileWith(), {
+      minScore: 0,
+      maxAskingRatio: 0.7,
+      minTitleRank: 2,
+      minExpectedMargin: 0,
+      requireNoMajorMechanicalRisk: false,
+    });
+    expect(decision.qualifies).toBe(false);
+    expect(decision.failedConditions).toContain("both economics gates did not pass");
+  });
+
+  it("never alerts when profile repair or fraud caps reject the evaluation", () => {
+    const repairInput = strongDealInput();
+    const repairEvaluation = evaluateListing({
+      ...repairInput,
+      profile: profileWith({ maxExpectedRepairs: 1 }),
+    });
+    expect(repairEvaluation.score.rejectionReasons.some((reason) => reason.includes("exceed max"))).toBe(true);
+    expect(evaluateAlertRule(repairEvaluation, profileWith({ maxExpectedRepairs: 1 }), rule).qualifies).toBe(false);
+
+    const fraudInput = strongDealInput();
+    fraudInput.listing.description = `${fraudInput.listing.description ?? ""} Send a deposit to hold it and pay by Zelle.`;
+    const fraudEvaluation = evaluateListing({
+      ...fraudInput,
+      profile: profileWith({ maxFraudRiskScore: 0 }),
+    });
+    expect(fraudEvaluation.score.rejectionReasons.some((reason) => reason.includes("Fraud risk"))).toBe(true);
+    expect(evaluateAlertRule(fraudEvaluation, profileWith({ maxFraudRiskScore: 0 }), rule).qualifies).toBe(false);
+  });
 });
 
 describe("buildAlertPayload", () => {

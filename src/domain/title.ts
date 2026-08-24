@@ -2,7 +2,7 @@
  * Title state machine + hard-reject brand logic.
  * Seller claims never advance past SELLER_CLAIMS_CLEAN.
  */
-import { HARD_REJECT_BRANDS, TITLE_STATE_RANK, type HardRejectBrand, type HistoryCheck, type TitleClaim, type TitleState } from "./types";
+import { HARD_REJECT_BRANDS, type HardRejectBrand, type HistoryCheck, type TitleClaim, type TitleState } from "./types";
 
 const CLAIM_PATTERNS: Array<{ re: RegExp; clean: boolean; claim: string }> = [
   { re: /\bclean\s+title\b/i, clean: true, claim: "clean title" },
@@ -88,6 +88,23 @@ export function evaluateHardRejects(
     }
   }
 
+  // An explicit seller/listing admission of a branded title is still a hard
+  // reject. It is not verified history, but it is enough to prevent a branded
+  // vehicle from qualifying when a profile allows unverified titles.
+  if (!history) {
+    for (const claim of claims) {
+      const normalized = claim.claim.toUpperCase();
+      const brand = normalized.includes("SALVAGE") ? "SALVAGE"
+        : normalized.includes("REBUILT") ? "REBUILT"
+        : normalized.includes("FLOOD") || normalized.includes("WATER") ? "FLOOD"
+        : normalized.includes("JUNK") ? "JUNK"
+        : normalized.includes("PARTS") ? "PARTS_ONLY"
+        : normalized.includes("DESTRUCTION") ? "CERTIFICATE_OF_DESTRUCTION"
+        : null;
+      if (brand && !allowed.has(brand)) reasons.push(`Explicit branded-title claim: ${brand}`);
+    }
+  }
+
   // Bad claims without a history check are strong signals, not verified rejects —
   // they block clean-title requirement instead of hard-rejecting.
   return { rejected: reasons.length > 0, reasons };
@@ -96,5 +113,10 @@ export function evaluateHardRejects(
 /** Does this listing satisfy the profile's clean-title requirement? */
 export function satisfiesCleanTitleRequirement(state: TitleState, requireClean: boolean): boolean {
   if (!requireClean) return true;
-  return TITLE_STATE_RANK[state] >= TITLE_STATE_RANK.HISTORY_CLEAN;
+  return isAuthoritativeCleanTitle(state);
+}
+
+/** Only provider-backed history states qualify as an authoritative clean title. */
+export function isAuthoritativeCleanTitle(state: TitleState): boolean {
+  return state === "HISTORY_CLEAN" || state === "VERIFIED";
 }

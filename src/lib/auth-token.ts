@@ -2,8 +2,16 @@ import { loadConfig } from "@/domain/config";
 
 export const AUTH_COOKIE = "dealhound_auth";
 
+/** Keep local HTTP acceptance usable while preserving Secure cookies behind HTTPS. */
+export function secureCookieForRequest(req: Request): boolean {
+  const forwardedProto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  return (forwardedProto ?? new URL(req.url).protocol.replace(":", "").toLowerCase()) === "https";
+}
+
 export interface AuthContext {
   userId: string;
+  role?: "OWNER" | "USER";
+  email?: string;
 }
 
 function configuredUsers(): Map<string, string> {

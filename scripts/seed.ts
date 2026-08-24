@@ -139,6 +139,7 @@ async function main() {
       priceMin: 3000,
       priceMax: 15000,
       maxAskingRatio: config.gateARatio,
+      maxAllInRatio: config.gateBRatio,
       requireCleanTitle: true,
       requireRepairEvidence: true,
       allowedRepairCategories: [],

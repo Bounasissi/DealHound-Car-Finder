@@ -45,6 +45,7 @@ export function vinConfidenceFor(
   if (!vin) return "NONE";
   if (!decode) return "PROVIDED_UNVERIFIED";
   if (!decode.valid) return "PROVIDED_UNVERIFIED";
+  if (decode.source === "manual") return "PROVIDED_UNVERIFIED";
   return decode.mismatches.length === 0 ? "DECODED_MATCH" : "DECODED_MISMATCH";
 }
 

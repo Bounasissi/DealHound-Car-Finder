@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import DetailActions from "./actions";
-import { getListing, latestEvaluation, latestHistoryCheck, listUserIssues, listValuations } from "@/lib/repo";
+import WorkflowRecords from "./workflow-records";
+import { getListing, latestEvaluation, latestHistoryCheck, listInspections, listOffers, listSellerInteractions, listUserIssues, listValuations } from "@/lib/repo";
 import { money, pct } from "@/lib/format";
 import { withServerAuth } from "@/lib/server-auth";
+import { missingInformation } from "@/domain/missing-information";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +14,10 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
     const { id } = await params;
     const listing = await getListing(id);
     if (!listing) notFound();
-    const [evaluation, history, valuations, issues] = await Promise.all([
-      latestEvaluation(id), latestHistoryCheck(id), listValuations(id), listUserIssues(id),
+    const [evaluation, history, valuations, issues, inspections, offers, interactions] = await Promise.all([
+      latestEvaluation(id), latestHistoryCheck(id), listValuations(id), listUserIssues(id), listInspections(id), listOffers(id), listSellerInteractions(id),
     ]);
+    const missing = missingInformation(listing, history, valuations[0] ?? null, issues);
     const headline = [listing.vehicle.year, listing.vehicle.make, listing.vehicle.model, listing.vehicle.trim].filter(Boolean).join(" ") || listing.title || "Untitled listing";
 
     return (
@@ -50,6 +53,16 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
         </article>
       </section>
 
+      <section className="grid gap-4 md:grid-cols-2">
+        <article className="rounded-lg border border-amber-200 bg-amber-50 p-5 shadow-sm">
+          <div className="flex items-baseline justify-between gap-3"><h2 className="font-semibold">Deal confidence</h2><strong>{missing.confidence}%</strong></div>
+          <p className="mt-1 text-sm text-zinc-700">Confidence in the evidence is separate from the deal score.</p>
+          {missing.items.length ? <ul className="mt-3 space-y-2 text-sm">{missing.items.map((item) => <li key={item.code}><strong>⚠ {item.label}:</strong> {item.nextAction}</li>)}</ul> : <p className="mt-3 text-sm text-emerald-700">Required evidence is present enough for the next workflow step.</p>}
+          <p className="mt-3 text-xs font-semibold text-zinc-600">Next action: {missing.nextAction}</p>
+        </article>
+        <article className="rounded-lg border bg-white p-5 shadow-sm"><h2 className="font-semibold">Score explanation</h2>{evaluation ? <div className="mt-3 space-y-2 text-sm">{evaluation.score.factors.map((factor) => <div key={factor.key} className="flex items-start justify-between gap-3"><span><strong>{factor.label}</strong><span className="ml-2 text-xs text-zinc-500">{factor.evidence}</span></span><strong>{factor.value}</strong></div>)}</div> : <p className="mt-2 text-sm text-zinc-500">Evaluate this listing to see the score factors.</p>}</article>
+      </section>
+
       <section className="rounded-lg border bg-white p-5 shadow-sm">
         <h2 className="font-semibold">Title and history provenance</h2>
         {history ? <dl className="mt-3 grid gap-2 text-sm md:grid-cols-3"><div><dt className="text-zinc-500">Provider</dt><dd>{history.provider}</dd></div><div><dt className="text-zinc-500">Checked</dt><dd>{new Date(history.checkedAt).toLocaleString()}</dd></div><div><dt className="text-zinc-500">Brands</dt><dd>{history.brands.length ? history.brands.join(", ") : "None returned"}</dd></div></dl> : <p className="mt-2 text-sm text-amber-700">No provider-backed history check is stored. Seller claims and manual document review are not independent history verification.</p>}
@@ -62,6 +75,15 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
         <article className="rounded-lg border bg-white p-5 shadow-sm"><h2 className="font-semibold">Repair findings</h2><DetailActions slot="issues" listingId={id} /><ul className="mt-3 space-y-1 text-sm">{issues.map((issue) => <li key={issue.id}>{issue.category}: {money(issue.estimateExpected)} · {issue.description}</li>)}</ul></article>
       </section>
       <section className="rounded-lg border bg-white p-5 shadow-sm"><h2 className="font-semibold">Outcome tracking</h2><DetailActions slot="outcome" listingId={id} /></section>
+      <section className="rounded-lg border bg-white p-5 shadow-sm"><h2 className="font-semibold">Inspection checklist</h2><DetailActions slot="inspection" listingId={id} /></section>
+      <section className="rounded-lg border bg-white p-5 shadow-sm"><h2 className="font-semibold">Offer calculator</h2><p className="mt-1 text-sm text-zinc-500">Uses the current valuation, repairs, and transaction-cost assumptions.</p><DetailActions slot="offer" listingId={id} /></section>
+      <section className="rounded-lg border bg-white p-5 shadow-sm"><h2 className="font-semibold">Report a problem</h2><DetailActions slot="feedback" listingId={id} /></section>
+      <WorkflowRecords
+        listingId={id}
+        inspections={inspections.map((item) => ({ id: item.id, status: item.status, scheduledAt: item.scheduledAt?.toISOString() ?? null, findings: item.findings, notes: item.notes, createdAt: item.createdAt.toISOString() }))}
+        offers={offers.map((item) => ({ id: item.id, amount: Number(item.amount), status: item.status, notes: item.notes, madeAt: item.madeAt.toISOString(), respondedAt: item.respondedAt?.toISOString() ?? null }))}
+        interactions={interactions.map((item) => ({ id: item.id, type: item.type, body: item.body, occurredAt: item.occurredAt.toISOString() }))}
+      />
     </main>
     );
   });

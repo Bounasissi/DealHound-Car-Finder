@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { OUTCOME_TYPES, REPAIR_CATEGORIES, WORKFLOW_STAGES } from "@/domain/types";
 
 interface DetailActionsProps {
-  slot?: "valuation" | "history" | "title" | "issues" | "outcome";
+  slot?: "valuation" | "history" | "title" | "issues" | "outcome" | "inspection" | "offer" | "feedback";
   listingId: string;
   stage?: string;
   watched?: boolean;
@@ -20,7 +20,7 @@ const btn =
   "rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const btnSecondary = "rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-40";
 
-async function callApi(url: string, method: string, body?: unknown) {
+async function callApi<T extends object = { error?: string }>(url: string, method: string, body?: unknown): Promise<T | null> {
   const res = await fetch(url, {
     method,
     credentials: "same-origin",
@@ -29,7 +29,14 @@ async function callApi(url: string, method: string, body?: unknown) {
   });
   const data = (await res.json().catch(() => null)) as { error?: string } | null;
   if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
-  return data;
+  return data as T | null;
+}
+
+interface OfferCalculation {
+  suggestedOffer: number;
+  maximumPurchasePrice: number;
+  expectedMarginAtAsking: number;
+  worstCaseMarginAtAsking: number;
 }
 
 function ErrorNote({ error }: { error: string | null }) {
@@ -49,9 +56,57 @@ export default function DetailActions(props: DetailActionsProps) {
       return <IssueForm listingId={props.listingId} />;
     case "outcome":
       return <OutcomeForm listingId={props.listingId} />;
+    case "inspection":
+      return <InspectionForm listingId={props.listingId} />;
+    case "offer":
+      return <OfferForm listingId={props.listingId} />;
+    case "feedback":
+      return <FeedbackForm listingId={props.listingId} />;
     default:
       return <HeaderActions {...props} />;
   }
+}
+
+function InspectionForm({ listingId }: { listingId: string }) {
+  const router = useRouter();
+  const [inspection, setInspection] = useState<{ items: Array<{ code: string; label: string; result: string; note: string | null }> } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { void fetch(`/api/listings/${listingId}/inspection`, { credentials: "same-origin" }).then((response) => response.json()).then((data) => setInspection(data.inspection)).catch((err) => setError(String(err))); }, [listingId]);
+  if (error) return <ErrorNote error={error} />;
+  if (!inspection) return <p className="mt-2 text-sm text-zinc-500">Loading checklist…</p>;
+  return <div className="mt-3 grid gap-2 sm:grid-cols-2">
+    {inspection.items.map((item) => <div key={item.code} className="flex items-center gap-2 rounded border border-zinc-100 p-2 text-sm">
+      <span className="min-w-0 flex-1">{item.label}</span>
+      <select aria-label={item.label} value={item.result} onChange={(event) => void (async () => { await callApi(`/api/listings/${listingId}/inspection`, "PATCH", { code: item.code, result: event.target.value }); router.refresh(); })()} className="rounded border px-2 py-1 text-xs">
+        {(["PASS", "FAIL", "UNKNOWN", "NOT_CHECKED"] as const).map((result) => <option key={result}>{result}</option>)}
+      </select>
+    </div>)}
+  </div>;
+}
+
+function OfferForm({ listingId }: { listingId: string }) {
+  const router = useRouter();
+  const [targetMargin, setTargetMargin] = useState("2000");
+  const [result, setResult] = useState<{ suggestedOffer: number; maximumPurchasePrice: number; expectedMarginAtAsking: number; worstCaseMarginAtAsking: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  return <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 text-sm">
+    <div className="flex flex-wrap items-end gap-2"><div><label className={label}>Target margin ($)</label><input type="number" min={0} value={targetMargin} onChange={(event) => setTargetMargin(event.target.value)} className={input} /></div>
+      <button className={btn} onClick={() => void (async () => { try { const data = await callApi<{ offer: OfferCalculation }>(`/api/listings/${listingId}/offer`, "POST", { targetMargin: Number(targetMargin) }); if (!data?.offer) throw new Error("Offer calculation returned no result"); setResult(data.offer); router.refresh(); } catch (err) { setError(err instanceof Error ? err.message : String(err)); } })()}>Calculate offer</button></div>
+    {result && <dl className="grid grid-cols-2 gap-2 rounded bg-emerald-50 p-3"><div><dt className="text-zinc-500">Suggested offer</dt><dd className="font-semibold">${result.suggestedOffer.toLocaleString()}</dd></div><div><dt className="text-zinc-500">Maximum buy</dt><dd className="font-semibold">${result.maximumPurchasePrice.toLocaleString()}</dd></div><div><dt className="text-zinc-500">Margin at asking</dt><dd>${result.expectedMarginAtAsking.toLocaleString()}</dd></div><div><dt className="text-zinc-500">Worst case</dt><dd>${result.worstCaseMarginAtAsking.toLocaleString()}</dd></div></dl>}
+    <ErrorNote error={error} />
+  </div>;
+}
+
+function FeedbackForm({ listingId }: { listingId: string }) {
+  const router = useRouter();
+  const [category, setCategory] = useState("OTHER");
+  const [message, setMessage] = useState("");
+  const [done, setDone] = useState(false);
+  return <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void (async () => { await callApi(`/api/listings/${listingId}/feedback`, "POST", { category, message }); setDone(true); setMessage(""); router.refresh(); })(); }}>
+    <div><label className={label}>Problem type</label><select value={category} onChange={(event) => setCategory(event.target.value)} className={input}>{["WRONG_VALUATION", "WRONG_REPAIR", "WRONG_TITLE", "DUPLICATE", "BAD_SCORE", "BROKEN_LISTING", "OTHER"].map((item) => <option key={item}>{item}</option>)}</select></div>
+    <div className="min-w-[16rem] flex-1"><label className={label}>What looks wrong?</label><input required minLength={3} value={message} onChange={(event) => setMessage(event.target.value)} className={input} /></div>
+    <button className={btn} type="submit">Report problem</button>{done && <span className="text-xs text-emerald-700">Recorded.</span>}
+  </form>;
 }
 
 function HeaderActions({ listingId, stage, watched, vin, hardRejected }: DetailActionsProps) {

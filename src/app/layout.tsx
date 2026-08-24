@@ -28,9 +28,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#19392f] text-xs text-[#c6e49d]">D</span>
               DealHound
             </Link>
-            <Link href="/" className="hidden text-[#687168] transition hover:text-[#19392f] sm:block">Radar</Link>
-            <Link href="/ingest" className="hidden text-[#687168] transition hover:text-[#19392f] sm:block">Add listing</Link>
-            <Link href="/profiles" className="hidden text-[#687168] transition hover:text-[#19392f] sm:block">Profiles</Link>
+            <div className="flex items-center gap-2 sm:hidden">
+              <Link href="/ingest" className="rounded-full border border-[#ded9cf] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#35604d]">Add</Link>
+              <Link href="/profiles" className="rounded-full border border-[#ded9cf] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#35604d]">Prefs</Link>
+            </div>
+            <div className="hidden items-center gap-5 sm:flex">
+              <Link href="/" className="text-[#687168] transition hover:text-[#19392f]">Radar</Link>
+              <Link href="/ingest" className="text-[#687168] transition hover:text-[#19392f]">Add listing</Link>
+              <Link href="/profiles" className="text-[#687168] transition hover:text-[#19392f]">Profiles</Link>
+              <Link href="/account" className="text-[#687168] transition hover:text-[#19392f]">Account</Link>
+            </div>
             <Link href="/alerts" className="rounded-full border border-[#c6e49d] bg-[#e5f1dc] px-3 py-1.5 text-xs font-semibold text-[#35604d] transition hover:bg-[#c6e49d]">Alerts</Link>
           </nav>
         </header>

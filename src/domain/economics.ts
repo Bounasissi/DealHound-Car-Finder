@@ -12,6 +12,8 @@ export interface EconomicsInput {
   valuation: ValuationBundle;
   repairs: RepairEstimateSummary;
   config: AppConfig;
+  /** Optional profile override; config remains the safe fallback. */
+  gateBRatio?: number;
 }
 
 export function computeDealEconomics(input: EconomicsInput): DealEconomics | null {
@@ -67,9 +69,10 @@ export function computeDealEconomics(input: EconomicsInput): DealEconomics | nul
     passed: askingRatio <= config.gateARatio,
     detail: `Asking $${askingPrice.toLocaleString()} / reference $${referenceGoodValue.toLocaleString()} = ${askingRatio} (max ${config.gateARatio})`,
   };
+  const gateBRatio = input.gateBRatio ?? config.gateBRatio;
   const gateB = {
-    passed: expected.allInToValueRatio <= config.gateBRatio,
-    detail: `Expected all-in $${expected.allInBasis.toLocaleString()} / finished value $${conservativeFinishedValue.toLocaleString()} = ${expected.allInToValueRatio} (max ${config.gateBRatio})`,
+    passed: expected.allInToValueRatio <= gateBRatio,
+    detail: `Expected all-in $${expected.allInBasis.toLocaleString()} / finished value $${conservativeFinishedValue.toLocaleString()} = ${expected.allInToValueRatio} (max ${gateBRatio})`,
   };
 
   return {

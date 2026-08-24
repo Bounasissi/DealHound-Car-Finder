@@ -3,7 +3,7 @@
  * providers, comparable-listing analysis, and manual KBB Good-value entry.
  * Reference selection is conservative (lowest credible source wins).
  */
-import type { CompSale, NormalizedListing, ValuationBundle, ValuationResult } from "./types";
+import type { CompSale, NormalizedListing, ValuationBasis, ValuationBundle, ValuationResult } from "./types";
 import { loadConfig } from "./config";
 
 export interface ValuationQuery {
@@ -34,6 +34,7 @@ export class ManualKbbProvider implements ValuationProvider {
     if (!v || v <= 0 || !Number.isFinite(v)) return null;
     return {
       provider: this.id,
+      basis: "KBB_GOOD",
       referenceGoodValue: v,
       compMedian: null,
       compRange: null,
@@ -71,6 +72,7 @@ export class CompsProvider implements ValuationProvider {
     const reference = Math.round(median * factor);
     return {
       provider: this.id,
+      basis: "COMPARABLES",
       referenceGoodValue: reference,
       compMedian: median,
       compRange: [prices[0], prices[prices.length - 1]],
@@ -100,32 +102,152 @@ export class LicensedKbbProvider implements ValuationProvider {
   }
   async getReferenceValue(query: ValuationQuery): Promise<ValuationResult | null> {
     if (typeof this.url !== "string" || !this.isConfigured()) return null;
-    const response = await Promise.race([
-      this.fetchImpl(`${this.url.replace(/\/$/, "")}/valuations`, {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.url.replace(/\/$/, "")}/valuations`, {
         method: "POST",
         headers: { accept: "application/json", "content-type": "application/json", authorization: `Bearer ${this.apiKey}` },
         body: JSON.stringify({ vehicle: query.listing.vehicle, mileage: query.listing.mileage, askingPrice: query.listing.price }),
-      }),
-      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error(`Valuation provider timed out after ${this.timeoutMs}ms`)), this.timeoutMs)),
-    ]);
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`Valuation provider timed out after ${this.timeoutMs}ms`);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) throw new Error(`Valuation provider returned HTTP ${response.status}`);
-    const body = (await response.json()) as { referenceGoodValue?: number; confidence?: number; notes?: string; provider?: string };
-    if (!body.referenceGoodValue || body.referenceGoodValue <= 0) return null;
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new Error("Valuation provider returned invalid JSON");
+    }
+    if (!isRecord(body)) throw new Error("Valuation provider returned an invalid payload");
+    const referenceGoodValue = body.referenceGoodValue;
+    const confidence = body.confidence;
+    if (typeof referenceGoodValue !== "number" || !Number.isFinite(referenceGoodValue) || referenceGoodValue <= 0) return null;
+    if (confidence !== undefined && (typeof confidence !== "number" || !Number.isFinite(confidence) || confidence < 0 || confidence > 1)) return null;
     return {
-      provider: body.provider ?? this.id,
-      referenceGoodValue: body.referenceGoodValue,
+      provider: typeof body.provider === "string" && body.provider.trim() ? body.provider : this.id,
+      basis: "KBB_GOOD",
+      referenceGoodValue,
       compMedian: null,
       compRange: null,
-      confidence: body.confidence ?? 0.8,
-      notes: body.notes ?? "Licensed provider response",
+      confidence: confidence ?? 0.8,
+      notes: typeof body.notes === "string" ? body.notes : "Licensed provider response",
       computedAt: new Date().toISOString(),
     };
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function configuredLicensedKbbProvider(): LicensedKbbProvider {
   const config = loadConfig();
   return new LicensedKbbProvider(config.valuationProviderUrl, config.valuationProviderApiKey, config.valuationTimeoutMs);
+}
+
+// ---------------------------------------------------------------------------
+// Optional MarketCheck predicted-value provider. This is a market proxy, not
+// KBB. It is opt-in because the product's target benchmark remains KBB Good.
+// ---------------------------------------------------------------------------
+
+export interface MarketCheckPriceConfig {
+  apiKey: string;
+  baseUrl?: string;
+  /** Used when the listing location does not contain a five-digit ZIP. */
+  zip?: string;
+  timeoutMs?: number;
+  enabled?: boolean;
+  confidence?: number;
+  fetchImpl?: typeof fetch;
+}
+
+export class MarketCheckPriceProvider implements ValuationProvider {
+  id = "marketcheck-price";
+  label = "MarketCheck predicted market value";
+
+  constructor(private readonly config: MarketCheckPriceConfig) {}
+
+  isConfigured() {
+    return Boolean(this.config.enabled && this.config.apiKey.trim());
+  }
+
+  async getReferenceValue(query: ValuationQuery): Promise<ValuationResult | null> {
+    if (!this.isConfigured() || !query.listing.vin || !/^[A-HJ-NPR-Z0-9]{17}$/i.test(query.listing.vin)) return null;
+    const zip = extractZip(query.listing.location) ?? this.config.zip?.trim();
+    if (!zip) return null;
+
+    const url = new URL("/v2/predict/car/us/marketcheck_price", this.config.baseUrl || "https://api.marketcheck.com");
+    url.searchParams.set("api_key", this.config.apiKey);
+    url.searchParams.set("vin", query.listing.vin);
+    url.searchParams.set("dealer_type", "independent");
+    url.searchParams.set("zip", zip);
+    url.searchParams.set("is_certified", "false");
+    if (query.listing.mileage !== null) url.searchParams.set("miles", String(query.listing.mileage));
+
+    const controller = new AbortController();
+    const timeoutMs = this.config.timeoutMs ?? 8000;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let response: Response;
+    try {
+      response = await (this.config.fetchImpl ?? fetch)(url.toString(), {
+        headers: { accept: "application/json" },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) throw new Error(`MarketCheck price request timed out after ${timeoutMs}ms`);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) throw new Error(`MarketCheck price returned HTTP ${response.status}`);
+
+    const body = (await response.json()) as { marketcheck_price?: number };
+    const value = body.marketcheck_price;
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+    const confidence = Math.max(0, Math.min(1, this.config.confidence ?? 0.7));
+    return {
+      provider: this.id,
+      basis: "MARKET_PROXY",
+      referenceGoodValue: value,
+      compMedian: null,
+      compRange: null,
+      confidence,
+      notes: `MarketCheck predicted market value for VIN ${query.listing.vin} near ZIP ${zip}; not a KBB Good-condition value. Confirm with KBB before purchase.`,
+      computedAt: new Date().toISOString(),
+    };
+  }
+}
+
+export function configuredMarketCheckPriceProvider(): MarketCheckPriceProvider {
+  const config = loadConfig();
+  return new MarketCheckPriceProvider({
+    apiKey: config.marketCheckApiKey,
+    baseUrl: config.marketCheckBaseUrl,
+    zip: config.marketCheckPriceZip,
+    timeoutMs: config.marketCheckTimeoutMs,
+    enabled: config.marketCheckPriceEnabled,
+    confidence: config.marketCheckPriceConfidence,
+  });
+}
+
+export function valuationBasisFor(result: Pick<ValuationResult, "provider" | "basis">): ValuationBasis {
+  if (result.basis && result.basis !== "UNKNOWN") return result.basis;
+  if (result.provider === "manual-kbb-entry" || result.provider === "kbb-licensed" || result.provider.startsWith("kbb-")) return "KBB_GOOD";
+  if (result.provider === "comps") return "COMPARABLES";
+  if (result.provider === "marketcheck-price") return "MARKET_PROXY";
+  return "UNKNOWN";
+}
+
+function extractZip(location: string | null): string | null {
+  const match = location?.match(/\b\d{5}(?:-\d{4})?\b/);
+  return match ? match[0].slice(0, 5) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +263,14 @@ export function buildValuationBundle(
   askingPrice: number | null,
   minConfidence = 0.5,
 ): ValuationBundle {
-  const credible = results.filter((r) => r.confidence >= minConfidence && r.referenceGoodValue > 0);
+  // Keep the full history in the returned bundle, but only compare the latest
+  // result from each provider. A stale low manual entry must not permanently
+  // make a corrected listing look cheaper than it is.
+  const latestByProvider = new Map<string, ValuationResult>();
+  for (const result of [...results].sort((a, b) => valuationTime(b) - valuationTime(a))) {
+    if (!latestByProvider.has(result.provider)) latestByProvider.set(result.provider, result);
+  }
+  const credible = [...latestByProvider.values()].filter((r) => r.confidence >= minConfidence && r.referenceGoodValue > 0);
   const chosen =
     credible.length > 0
       ? credible.reduce((lo, r) => (r.referenceGoodValue < lo.referenceGoodValue ? r : lo))
@@ -160,10 +289,16 @@ export function buildValuationBundle(
     results,
     referenceGoodValue: chosen?.referenceGoodValue ?? 0,
     chosenProvider: chosen?.provider ?? "none",
+    chosenBasis: chosen ? valuationBasisFor(chosen) : "UNKNOWN",
     askingRatio,
     discountAmount,
     discountPct,
   };
+}
+
+function valuationTime(result: ValuationResult): number {
+  const parsed = Date.parse(result.computedAt);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
 }
 
 function round(n: number, digits: number): number {

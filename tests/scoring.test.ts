@@ -84,6 +84,13 @@ describe("computeDealScore", () => {
     expect(s.rejectionReasons.some((r) => r.includes("Clean title required"))).toBe(true);
   });
 
+  it("does not treat document review as authoritative clean history", () => {
+    const s = scoreFor({ titleState: "DOCUMENT_REVIEWED" });
+    expect(s.rejectionReasons.some((r) => r.includes("Clean title required"))).toBe(true);
+    const titleFactor = s.factors.find((factor) => factor.key === "titleHistory");
+    expect(titleFactor?.value).toBe(50);
+  });
+
   it("expected repairs over profile cap are rejected", () => {
     const repairs = summarizeRepairs([
       estimateIssue("HVAC", "CRITICAL"),

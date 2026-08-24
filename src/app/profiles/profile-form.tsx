@@ -15,13 +15,19 @@ export default function ProfileForm() {
     radiusMiles: "100",
     make: "",
     model: "",
+    trim: "",
     yearMin: "",
     yearMax: "",
     mileageMax: "",
+    priceMin: "",
     priceMax: "",
     maxAskingRatio: "0.70",
+    requireKbbReference: true,
+    maxAllInRatio: "0.80",
     requireCleanTitle: true,
     requireRepairEvidence: true,
+    allowed: [] as string[],
+    maxExpectedRepairs: "",
     minDealMargin: "2000",
     maxFraudRiskScore: "40",
     rejected: ["ENGINE_MAJOR", "TRANSMISSION_MAJOR", "RUST_FRAME_FLOOD_FIRE"] as string[],
@@ -42,18 +48,20 @@ export default function ProfileForm() {
           radiusMiles: Number(form.radiusMiles),
           make: form.make || null,
           model: form.model || null,
-          trim: null,
+          trim: form.trim || null,
           yearMin: form.yearMin ? Number(form.yearMin) : null,
           yearMax: form.yearMax ? Number(form.yearMax) : null,
           mileageMax: form.mileageMax ? Number(form.mileageMax) : null,
-          priceMin: null,
+          priceMin: form.priceMin ? Number(form.priceMin.replace(/[^0-9]/g, "")) : null,
           priceMax: form.priceMax ? Number(form.priceMax.replace(/[^0-9]/g, "")) : null,
           maxAskingRatio: Number(form.maxAskingRatio),
+          requireKbbReference: form.requireKbbReference,
+          maxAllInRatio: Number(form.maxAllInRatio),
           requireCleanTitle: form.requireCleanTitle,
           requireRepairEvidence: form.requireRepairEvidence,
-          allowedRepairCategories: [],
+          allowedRepairCategories: form.allowed,
           rejectedRepairCategories: form.rejected,
-          maxExpectedRepairs: null,
+          maxExpectedRepairs: form.maxExpectedRepairs ? Number(form.maxExpectedRepairs.replace(/[^0-9]/g, "")) : null,
           minDealMargin: Number(form.minDealMargin),
           maxFraudRiskScore: Number(form.maxFraudRiskScore),
           active: true,
@@ -86,7 +94,7 @@ export default function ProfileForm() {
 
   return (
     <form onSubmit={submit} className="space-y-4 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="col-span-2 sm:col-span-1">
           <label className={label}>Profile name</label>
           <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Cheap commuters" className={input} />
@@ -107,7 +115,11 @@ export default function ProfileForm() {
           <label className={label}>Model</label>
           <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="any" className={input} />
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={label}>Trim</label>
+          <input value={form.trim} onChange={(e) => setForm({ ...form, trim: e.target.value })} placeholder="any" className={input} />
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:col-span-2 sm:grid-cols-2">
           <div>
             <label className={label}>Year min</label>
             <input type="number" value={form.yearMin} onChange={(e) => setForm({ ...form, yearMin: e.target.value })} className={input} />
@@ -122,12 +134,24 @@ export default function ProfileForm() {
           <input type="number" value={form.mileageMax} onChange={(e) => setForm({ ...form, mileageMax: e.target.value })} className={input} />
         </div>
         <div>
+          <label className={label}>Min price ($)</label>
+          <input value={form.priceMin} onChange={(e) => setForm({ ...form, priceMin: e.target.value })} className={input} />
+        </div>
+        <div>
           <label className={label}>Max price ($)</label>
           <input value={form.priceMax} onChange={(e) => setForm({ ...form, priceMax: e.target.value })} className={input} />
         </div>
         <div>
-          <label className={label}>Max asking/reference ratio</label>
+          <label className={label}>Max asking/KBB Good ratio</label>
           <input value={form.maxAskingRatio} onChange={(e) => setForm({ ...form, maxAskingRatio: e.target.value })} className={input} />
+        </div>
+        <div>
+          <label className={label}>Max all-in/value ratio</label>
+          <input value={form.maxAllInRatio} onChange={(e) => setForm({ ...form, maxAllInRatio: e.target.value })} className={input} />
+        </div>
+        <div>
+          <label className={label}>Max expected repairs ($)</label>
+          <input type="number" min="0" value={form.maxExpectedRepairs} onChange={(e) => setForm({ ...form, maxExpectedRepairs: e.target.value })} placeholder="any" className={input} />
         </div>
         <div>
           <label className={label}>Min deal margin ($)</label>
@@ -136,6 +160,12 @@ export default function ProfileForm() {
         <div>
           <label className={label}>Max fraud risk score</label>
           <input type="number" value={form.maxFraudRiskScore} onChange={(e) => setForm({ ...form, maxFraudRiskScore: e.target.value })} className={input} />
+        </div>
+        <div className="flex items-end pb-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.requireKbbReference} onChange={(e) => setForm({ ...form, requireKbbReference: e.target.checked })} />
+            Require KBB Good benchmark (proxy/comps stay exploratory)
+          </label>
         </div>
         <div className="flex items-end pb-2">
           <label className="flex items-center gap-2 text-sm">
@@ -150,6 +180,23 @@ export default function ProfileForm() {
           </label>
         </div>
       </div>
+
+      <fieldset>
+        <legend className={label}>Allowed repair categories (optional)</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {REPAIR_CATEGORIES.map((cat) => (
+            <label key={cat} className={`cursor-pointer rounded-full border px-3 py-1 text-xs ${form.allowed.includes(cat) ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-zinc-300 bg-white text-zinc-600"}`}>
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={form.allowed.includes(cat)}
+                onChange={(e) => setForm({ ...form, allowed: e.target.checked ? [...form.allowed, cat] : form.allowed.filter((c) => c !== cat) })}
+              />
+              {cat}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <fieldset>
         <legend className={label}>Auto-reject repair categories</legend>

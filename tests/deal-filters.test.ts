@@ -6,6 +6,7 @@ const baseFilter: DealFilter = {
   maxAskingRatio: 0.7,
   title: "history-clean",
   needsWork: true,
+  includeHardRejected: false,
   maxExpectedRepairs: null,
   minScore: null,
   sort: "best",
@@ -53,9 +54,18 @@ describe("filterDeals", () => {
     expect(filterDeals(items, baseFilter)).toHaveLength(0);
   });
 
+  it("does not treat manual document review as history-verified", () => {
+    expect(filterDeals([deal({ titleState: "DOCUMENT_REVIEWED" })], baseFilter)).toHaveLength(0);
+  });
+
   it("requires explicit repair evidence when needsWork is enabled", () => {
     expect(filterDeals([deal({ hasRepairEvidence: false, repairCount: 0 })], baseFilter)).toHaveLength(0);
     expect(filterDeals([deal({ hasRepairEvidence: false, repairCount: 0 })], { ...baseFilter, needsWork: false })).toHaveLength(1);
+  });
+
+  it("keeps hard rejects out of the qualified lane unless explicitly requested", () => {
+    expect(filterDeals([deal({ hardRejected: true })], baseFilter)).toHaveLength(0);
+    expect(filterDeals([deal({ hardRejected: true })], { ...baseFilter, includeHardRejected: true })).toHaveLength(1);
   });
 
   it("supports text, repair-cost, score, and best-deal sorting", () => {

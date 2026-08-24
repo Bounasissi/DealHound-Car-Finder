@@ -1,4 +1,5 @@
 import { TITLE_STATE_RANK, type ScoreClass, type TitleState } from "@/domain/types";
+import { isAuthoritativeCleanTitle } from "@/domain/title";
 
 export type DealTitleFilter = "any" | "seller-claim" | "history-clean";
 export type DealSort = "best" | "recent" | "price" | "score";
@@ -8,6 +9,7 @@ export interface DealFilter {
   maxAskingRatio: number | null;
   title: DealTitleFilter;
   needsWork: boolean;
+  includeHardRejected: boolean;
   maxExpectedRepairs: number | null;
   minScore: number | null;
   sort: DealSort;
@@ -28,6 +30,8 @@ export interface DealInboxItem {
   scoreClass: ScoreClass | null;
   askingRatio: number | null;
   referenceValue: number | null;
+  valuationProvider?: string | null;
+  valuationBasis?: "KBB_GOOD" | "COMPARABLES" | "MARKET_PROXY" | "UNKNOWN" | null;
   discountPct: number | null;
   expectedMargin: number | null;
   titleState: TitleState | null;
@@ -48,9 +52,10 @@ export function filterDeals(items: DealInboxItem[], filter: DealFilter): DealInb
         return false;
       }
       if (filter.maxAskingRatio !== null && (item.askingRatio === null || item.askingRatio > filter.maxAskingRatio)) return false;
-      if (filter.title === "history-clean" && titleRank(item.titleState) < TITLE_STATE_RANK.HISTORY_CLEAN) return false;
+      if (filter.title === "history-clean" && (!item.titleState || !isAuthoritativeCleanTitle(item.titleState))) return false;
       if (filter.title === "seller-claim" && titleRank(item.titleState) < TITLE_STATE_RANK.SELLER_CLAIMS_CLEAN) return false;
       if (filter.needsWork && !item.hasRepairEvidence) return false;
+      if (!filter.includeHardRejected && item.hardRejected) return false;
       if (filter.maxExpectedRepairs !== null && (item.repairExpected === null || item.repairExpected > filter.maxExpectedRepairs)) return false;
       if (filter.minScore !== null && (item.score === null || item.score < filter.minScore)) return false;
       return true;

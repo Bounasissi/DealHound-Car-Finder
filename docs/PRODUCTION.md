@@ -10,7 +10,9 @@ Listings enter through pasted text, screenshots/notes, user-provided CSV, an exp
 
 Title states are intentionally conservative: seller claims remain `SELLER_CLAIMS_CLEAN`, a user-recorded document review is `DOCUMENT_REVIEWED`, and only authoritative evidence may produce `HISTORY_CLEAN` or `VERIFIED`. A missing history provider is not an error on the $0 path; it means manual verification is required.
 
-Valuation uses three free-compatible options: comparable listings (`comps`), a user-entered KBB/JD Power/private-party value (`manual-kbb-entry`), or an optional separately approved licensed adapter. Every saved valuation stores its provider and provenance note.
+Valuation uses comparable listings (`comps`), a user-entered KBB/JD Power/private-party value (`manual-kbb-entry`), or an optional separately approved licensed adapter. Every saved valuation stores its provider and provenance basis. Search profiles require `KBB_GOOD` by default: comparable and MarketCheck proxy values remain exploratory and cannot qualify the default deal lane or create alerts.
+
+For a live KBB lane, obtain KBB InfoDriver approval and configure the approved bridge described in [`docs/KBB-INTEGRATION.md`](KBB-INTEGRATION.md). The public KBB product page does not expose an undocumented endpoint contract; do not scrape KBB.com or treat a generic market-price provider as KBB.
 
 For automated discovery, set `MARKETCHECK_API_KEY` and sync an active search profile from `/profiles`. The adapter applies ZIP/radius, make/model, year, mileage, price, and (when required) MarketCheck's `carfax_clean_title` filter before DealHound's own scoring and verification gates. MarketCheck's private-party feed is a licensed external dependency; it does not by itself prove a title state inside DealHound.
 
@@ -34,3 +36,9 @@ Then verify `GET /api/health` returns `status: ok`, authenticate a smoke-test re
 ## Recovery
 
 Take a database backup before migrations. Migrations are append-only files in `drizzle/` and are tracked by `_migrations`. If independent history evidence is unavailable, leave listings in an unverified/manual-review state; do not set `HISTORY_CLEAN` or `VERIFIED` merely because a seller says the title is clean.
+
+## Account and operations configuration
+
+The first database account created through `/api/auth/signup` receives `OWNER`; later accounts receive `USER`. Owners can create invite tokens through `/api/auth/invite`. Configure `CRON_SECRET` and call `POST /api/cron/run` from the hosting scheduler every five minutes to enqueue and process active profiles. Configure `OBJECT_STORAGE_BASE_URL` and `OBJECT_STORAGE_TOKEN` for durable uploads; otherwise uploads use the local development directory and are not a production durability guarantee.
+
+Configure `EMAIL_API_KEY` or `RESEND_API_KEY` and `EMAIL_FROM` for outbound email. Without them, alerts remain in the in-app inbox and optional webhook path. Set daily `USAGE_*_PER_DAY` ceilings before enabling paid providers.

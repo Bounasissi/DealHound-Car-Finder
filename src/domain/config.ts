@@ -59,6 +59,13 @@ export interface AppConfig {
   valuationProviderUrl: string;
   valuationProviderApiKey: string;
   valuationTimeoutMs: number;
+  /** Optional, explicitly enabled MarketCheck predicted-value lane. */
+  marketCheckApiKey: string;
+  marketCheckBaseUrl: string;
+  marketCheckTimeoutMs: number;
+  marketCheckPriceEnabled: boolean;
+  marketCheckPriceZip: string;
+  marketCheckPriceConfidence: number;
   alertWebhookUrl: string;
   alertWebhookTimeoutMs: number;
   apiRateLimitPerMinute: number;
@@ -92,6 +99,12 @@ export function loadConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     valuationProviderUrl: process.env.VALUATION_PROVIDER_URL ?? "",
     valuationProviderApiKey: process.env.VALUATION_PROVIDER_API_KEY ?? "",
     valuationTimeoutMs: num("VALUATION_TIMEOUT_MS", 8000),
+    marketCheckApiKey: process.env.MARKETCHECK_API_KEY ?? "",
+    marketCheckBaseUrl: process.env.MARKETCHECK_API_BASE_URL ?? "https://api.marketcheck.com",
+    marketCheckTimeoutMs: num("MARKETCHECK_TIMEOUT_MS", 8000),
+    marketCheckPriceEnabled: bool("MARKETCHECK_PRICE_ENABLED", false),
+    marketCheckPriceZip: process.env.MARKETCHECK_PRICE_ZIP ?? "",
+    marketCheckPriceConfidence: num("MARKETCHECK_PRICE_CONFIDENCE", 0.7),
     alertWebhookUrl: process.env.ALERT_WEBHOOK_URL ?? "",
     alertWebhookTimeoutMs: num("ALERT_WEBHOOK_TIMEOUT_MS", 5000),
     apiRateLimitPerMinute: num("API_RATE_LIMIT_PER_MINUTE", 120),

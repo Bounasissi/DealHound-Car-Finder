@@ -66,7 +66,10 @@ export function evaluateListing(input: DealEvaluationInput, deps: PipelineDeps =
     if (!parsedRefs.some((r) => r.category === ref.category)) parsedRefs.push(ref);
   }
   const issues = buildIssues({ parsedRefs, userIssues: input.userIssues, vehicle: listing.vehicle, fullText });
-  const repairs = summarizeRepairs(issues, { rejectedCategories: profile.rejectedRepairCategories });
+  const repairs = summarizeRepairs(issues, {
+    allowedCategories: profile.allowedRepairCategories,
+    rejectedCategories: profile.rejectedRepairCategories,
+  });
 
   // --- Valuation ----------------------------------------------------------------------
   const valuation = buildValuationBundle(input.valuations, listing.price);
@@ -75,14 +78,16 @@ export function evaluateListing(input: DealEvaluationInput, deps: PipelineDeps =
     valuation,
     repairs,
     config,
+    gateBRatio: profile.maxAllInRatio,
   });
+  const kbbReferenceOk = profile.requireKbbReference === false || valuation.chosenBasis === "KBB_GOOD";
 
   // --- Fraud ------------------------------------------------------------------------------
   const fraud = assessFraud({
     listing,
     valuation,
     vinMismatch: vinConfidence === "DECODED_MISMATCH",
-    duplicateCount: 0, // set by caller when duplicates known; pipeline-level default
+    duplicateCount: input.duplicateCount ?? 0,
     config,
   });
 
@@ -110,8 +115,11 @@ export function evaluateListing(input: DealEvaluationInput, deps: PipelineDeps =
   if (!repairEvidenceOk) {
     score.rejectionReasons.unshift("Profile requires repair evidence; no repair findings were disclosed or confirmed");
   }
+  if (!kbbReferenceOk) {
+    score.rejectionReasons.unshift(`Profile requires KBB Good valuation; current reference basis is ${valuation.chosenBasis}`);
+  }
 
-  const hardRejected = hardReject.rejected || !cleanTitleOk || !repairEvidenceOk;
+  const hardRejected = hardReject.rejected || !cleanTitleOk || !repairEvidenceOk || !kbbReferenceOk;
 
   // --- Suggested workflow stage -----------------------------------------------------------------
   const suggestedStage = suggestStageFor(titleState, listing.vin, Boolean(historyCheck));

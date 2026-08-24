@@ -8,10 +8,12 @@ export default function IngestPage() {
   const [pastedText, setPastedText] = useState("");
   const [url, setUrl] = useState("");
   const [price, setPrice] = useState("");
+  const [kbbGoodValue, setKbbGoodValue] = useState("");
   const [mileage, setMileage] = useState("");
   const [vin, setVin] = useState("");
   const [location, setLocation] = useState("");
   const [screenshotNotes, setScreenshotNotes] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
   const [csv, setCsv] = useState("");
   const [csvBusy, setCsvBusy] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export default function IngestPage() {
       const body = {
         pastedText: pastedText || undefined,
         url: url || undefined,
+        ...(kbbGoodValue ? { kbbGoodValue: Number(kbbGoodValue.replace(/[^0-9.]/g, "")) } : {}),
         screenshotNotes: screenshotNotes ? screenshotNotes.split("\n").filter(Boolean) : undefined,
         overrides: {
           ...(price ? { price: Number(price.replace(/[^0-9.]/g, "")) } : {}),
@@ -42,6 +45,11 @@ export default function IngestPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      for (const photo of photos) {
+        const upload = new FormData(); upload.set("file", photo); upload.set("note", "Marketplace screenshot");
+        const photoResponse = await fetch(`/api/listings/${data.listing.id}/photos`, { method: "POST", credentials: "same-origin", body: upload });
+        if (!photoResponse.ok) throw new Error((await photoResponse.json().catch(() => null))?.error ?? "Screenshot upload failed");
+      }
       router.push(`/listings/${data.listing.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -82,7 +90,7 @@ export default function IngestPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="block text-sm font-medium">Listing URL (optional)</label>
             <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://facebook.com/marketplace/item/…"
@@ -99,16 +107,27 @@ export default function IngestPage() {
               className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
           </div>
           <div>
+            <label className="block text-sm font-medium">KBB Good-condition value</label>
+            <input value={kbbGoodValue} onChange={(e) => setKbbGoodValue(e.target.value)} placeholder="$15,000" inputMode="numeric"
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-zinc-500">Required for the default KBB-qualified deal lane; leave blank only for exploratory/manual-review mode.</p>
+          </div>
+          <div>
             <label className="block text-sm font-medium">Mileage override</label>
             <input value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="115000"
               className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="block text-sm font-medium">Location override</label>
             <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Mount Laurel, NJ"
               className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium">Marketplace screenshots</label>
+            <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(e) => setPhotos(Array.from(e.target.files ?? []))} className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-zinc-500">JPEG, PNG, or WebP; up to 10 MB each. Screenshots stay private to your account.</p>
+          </div>
+          <div className="sm:col-span-2">
             <label className="block text-sm font-medium">Screenshot observations (one per line)</label>
             <textarea value={screenshotNotes} onChange={(e) => setScreenshotNotes(e.target.value)} rows={3}
               placeholder={"odometer shows 98k\ncheck engine light visible"}
@@ -120,7 +139,7 @@ export default function IngestPage() {
 
         <button
           type="submit"
-          disabled={busy || (!pastedText && !url)}
+          disabled={busy || (!pastedText && !url && photos.length === 0)}
           className="w-full rounded-md bg-zinc-900 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 disabled:opacity-40"
         >
           {busy ? "Evaluating…" : "Ingest & Evaluate"}
@@ -130,7 +149,7 @@ export default function IngestPage() {
       <form onSubmit={submitCsv} className="space-y-3 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
         <div>
           <h2 className="font-semibold">Import a CSV export</h2>
-          <p className="mt-1 text-sm text-zinc-600">User-provided data only. Supported columns include title, description, price, mileage, VIN, year, make, model, trim, location, seller, and contact.</p>
+          <p className="mt-1 text-sm text-zinc-600">User-provided data only. Supported columns include title, description, price, kbbGoodValue, mileage, VIN, year, make, model, trim, location, seller, and contact.</p>
         </div>
         <textarea value={csv} onChange={(e) => setCsv(e.target.value)} rows={7} placeholder={'title,price,mileage,year,make,model,location\n2015 Honda Accord,11500,98000,2015,Honda,Accord,"Mount Laurel, NJ"'} className="w-full rounded-md border border-zinc-300 p-3 font-mono text-sm" />
         {csvError && <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{csvError}</p>}

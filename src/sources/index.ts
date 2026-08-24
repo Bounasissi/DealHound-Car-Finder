@@ -38,6 +38,8 @@ export interface ManualIngestInput {
   sourceKind?: RawListing["sourceKind"];
   pastedText?: string;
   url?: string;
+  /** Optional user-entered KBB Good-condition reference for immediate evaluation. */
+  kbbGoodValue?: number;
   screenshotNotes?: string[];
   photoNotes?: string[];
   overrides?: Partial<RawListing>;
@@ -56,11 +58,14 @@ export function parseCsvListings(csv: string): ManualIngestInput[] {
   return rows.slice(1).filter((row) => row.some((cell) => cell.trim())).map((row) => {
     const price = numberCell(at(row, ["price", "askingprice", "asking"]));
     const mileage = integerCell(at(row, ["mileage", "miles", "odometer"]));
+    const kbbGoodValueRaw = numberCell(at(row, ["kbbgoodvalue", "kbbgood", "goodvalue", "referencegoodvalue"]));
+    const kbbGoodValue = kbbGoodValueRaw !== undefined && kbbGoodValueRaw >= 100 && kbbGoodValueRaw <= 1_000_000 ? kbbGoodValueRaw : undefined;
     const year = integerCell(at(row, ["year"]));
     const vin = at(row, ["vin"]);
     return {
       pastedText: [at(row, ["title", "name"]), at(row, ["description", "details"]), at(row, ["titleclaim", "title"])].filter(Boolean).join("\n") || undefined,
       url: at(row, ["url", "listingurl", "link"]),
+      kbbGoodValue,
       overrides: {
         title: at(row, ["title", "name"]),
         price,
@@ -285,6 +290,7 @@ export function matchesProfile(listing: RawListing, p: SearchProfile): boolean {
   if (p.yearMax !== null && (listing.year ?? 9999) > p.yearMax) return false;
   if (p.make && (listing.make ?? "").toLowerCase() !== p.make.toLowerCase()) return false;
   if (p.model && !(listing.model ?? "").toLowerCase().includes(p.model.toLowerCase())) return false;
+  if (p.trim && !(listing.trim ?? "").toLowerCase().includes(p.trim.toLowerCase())) return false;
   return true;
 }
 
