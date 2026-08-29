@@ -19,7 +19,7 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.2",
+    "drizzle-orm": "^0.45.2",
     "next": "^15.4.4",
     "postgres": "^3.4.7",
     "react": "^19.1.1",
