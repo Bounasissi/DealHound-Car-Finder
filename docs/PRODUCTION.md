@@ -31,7 +31,7 @@ pnpm test
 pnpm build
 ```
 
-Then verify `GET /api/health` returns `status: ok`, authenticate a smoke-test request, ingest a user-supplied listing and CSV row, record a manual title note, add a comparable valuation, confirm provenance is visible, and confirm repeated evaluation creates at most one alert.
+Then verify `GET /api/health` returns `status: ok`, authenticate a smoke-test request, ingest a user-supplied listing and CSV row, record a manual title note, add a comparable valuation, confirm provenance is visible, and confirm repeated evaluation creates at most one alert. The same response includes `release.ready` and `release.missing`: `ready: false` with `mode: manual-user-assisted` is an honest, usable $0/manual deployment, not evidence that unattended inventory, provider enrichment, scheduled jobs, and object storage are provisioned. A fully automated release requires `release.ready: true` and an empty `release.missing` list.
 
 ## Recovery
 

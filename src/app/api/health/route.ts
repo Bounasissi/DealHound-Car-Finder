@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { loadConfig } from "@/domain/config";
+import { assessReleaseReadiness } from "@/domain/health";
 
 export async function GET() {
   const config = loadConfig();
@@ -16,10 +17,11 @@ export async function GET() {
     jobs: process.env.CRON_SECRET ? "configured" : "unconfigured",
     storage: process.env.OBJECT_STORAGE_BASE_URL ? "configured" : "local-development",
   };
+  const release = assessReleaseReadiness(providers);
   try {
     await db.execute(sql`select 1`);
-    return Response.json({ status: "ok", database: "ok", providers, at: new Date().toISOString() });
+    return Response.json({ status: "ok", database: "ok", providers, release, at: new Date().toISOString() });
   } catch {
-    return Response.json({ status: "degraded", database: "unavailable", providers: { ...providers, database: "unavailable" }, at: new Date().toISOString() }, { status: 503 });
+    return Response.json({ status: "degraded", database: "unavailable", providers: { ...providers, database: "unavailable" }, release, at: new Date().toISOString() }, { status: 503 });
   }
 }
