@@ -253,7 +253,7 @@ export class CsvListingSource implements ListingSource {
 }
 
 // ---------------------------------------------------------------------------
-// Production-shaped mock inventory adapter
+// Licensed inventory adapter; it is registered only when explicit provider credentials exist.
 // ---------------------------------------------------------------------------
 
 export interface InventoryApiConfig {

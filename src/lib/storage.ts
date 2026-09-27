@@ -22,8 +22,7 @@ export async function storeObject(ownerId: string, file: File): Promise<{ key: s
   if (remoteBase && process.env.OBJECT_STORAGE_TOKEN) {
     const response = await fetch(`${remoteBase.replace(/\/$/, "")}/objects/${encodeURIComponent(key)}`, { method: "PUT", headers: { authorization: `Bearer ${process.env.OBJECT_STORAGE_TOKEN}`, "content-type": file.type }, body: await file.arrayBuffer() });
     if (!response.ok) throw new Error(`Object storage returned HTTP ${response.status}`);
-    const body = await response.json().catch(() => ({})) as { url?: string };
-    return { key, url: body.url ?? `${remoteBase.replace(/\/$/, "")}/objects/${encodeURIComponent(key)}`, contentType: file.type };
+    return { key, url: `/api/uploads/${key}`, contentType: file.type };
   }
   const root = path.resolve(process.env.LOCAL_UPLOAD_DIR ?? path.join(process.cwd(), ".uploads"));
   const target = path.join(root, key);
@@ -35,6 +34,20 @@ export async function storeObject(ownerId: string, file: File): Promise<{ key: s
 
 export async function readObject(ownerId: string, key: string): Promise<{ bytes: Buffer; contentType: string } | null> {
   if (!key.startsWith(`${ownerId}/`) || key.includes("..")) return null;
+  const remoteBase = process.env.OBJECT_STORAGE_BASE_URL;
+  const remoteToken = process.env.OBJECT_STORAGE_TOKEN;
+  if (remoteBase && remoteToken) {
+    try {
+      const response = await fetch(`${remoteBase.replace(/\/$/, "")}/objects/${encodeURIComponent(key)}`, { headers: { authorization: `Bearer ${remoteToken}` } });
+      if (!response.ok) return null;
+      return {
+        bytes: Buffer.from(await response.arrayBuffer()),
+        contentType: response.headers.get("content-type") ?? "application/octet-stream",
+      };
+    } catch {
+      return null;
+    }
+  }
   const root = path.resolve(process.env.LOCAL_UPLOAD_DIR ?? path.join(process.cwd(), ".uploads"));
   const target = path.join(root, key);
   if (!target.startsWith(`${root}${path.sep}`)) return null;

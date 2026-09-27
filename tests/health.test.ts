@@ -9,12 +9,14 @@ describe("assessReleaseReadiness", () => {
       inventory: "manual-only",
       jobs: "unconfigured",
       storage: "local-development",
+      backupRestore: "unconfigured",
+      monitoring: "unconfigured",
     });
 
     expect(result).toEqual({
       mode: "manual-user-assisted",
       ready: false,
-      missing: ["valuation-provider", "history-provider", "inventory-source", "scheduled-jobs", "object-storage"],
+      missing: ["valuation-provider", "history-provider", "inventory-source", "scheduled-jobs", "object-storage", "backup-restore", "monitoring"],
     });
   });
 
@@ -25,6 +27,22 @@ describe("assessReleaseReadiness", () => {
       inventory: "configured",
       jobs: "configured",
       storage: "configured",
+      backupRestore: "configured",
+      monitoring: "configured",
     })).toEqual({ mode: "automated", ready: true, missing: [] });
+  });
+
+  it("does not treat a cron secret alone as proof of production operations", () => {
+    const result = assessReleaseReadiness({
+      valuation: "configured",
+      history: "configured",
+      inventory: "configured",
+      jobs: "configured",
+      storage: "configured",
+      backupRestore: "unconfigured",
+      monitoring: "configured",
+    });
+
+    expect(result).toEqual({ mode: "manual-user-assisted", ready: false, missing: ["backup-restore"] });
   });
 });

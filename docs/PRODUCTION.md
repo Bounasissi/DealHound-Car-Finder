@@ -18,6 +18,10 @@ For automated discovery, set `MARKETCHECK_API_KEY` and sync an active search pro
 
 Alerts are always persisted to the in-app inbox. `ALERT_WEBHOOK_URL` is optional and can point to a free Discord webhook; delivery failures are recorded and retried without changing the deal decision.
 
+The cron worker is bounded to 25 jobs per invocation, uses idempotent enqueue keys and bounded exponential retry, isolates malformed jobs so the batch can continue, and returns structured run counts and duration. It emits `cron.run.completed` and `job.failed` JSON log events. Retain those responses/logs as scheduler evidence.
+
+Production health validates critical configuration and returns HTTP 503 with explicit issue codes when `DATABASE_URL` is missing, local authentication bypass is enabled, or object-storage credentials are incomplete. Optional valuation, history, inventory, AI, email, and webhook providers remain clearly reported as optional/manual lanes.
+
 ## Release gate
 
 Run:
@@ -33,12 +37,16 @@ pnpm build
 
 Then verify `GET /api/health` returns `status: ok`, authenticate a smoke-test request, ingest a user-supplied listing and CSV row, record a manual title note, add a comparable valuation, confirm provenance is visible, and confirm repeated evaluation creates at most one alert. The same response includes `release.ready` and `release.missing`: `ready: false` with `mode: manual-user-assisted` is an honest, usable $0/manual deployment, not evidence that unattended inventory, provider enrichment, scheduled jobs, and object storage are provisioned. A fully automated release requires `release.ready: true` and an empty `release.missing` list.
 
+The repeatable public smoke check is `scripts/production-smoke.sh <base-url>`. It verifies health, confirms the protected evidence endpoint returns 401 without credentials, and optionally checks authenticated listing access when `DEALHOUND_SMOKE_TOKEN` is supplied; the token is never printed.
+
 ## Recovery
 
 Take a database backup before migrations. Migrations are append-only files in `drizzle/` and are tracked by `_migrations`. If independent history evidence is unavailable, leave listings in an unverified/manual-review state; do not set `HISTORY_CLEAN` or `VERIFIED` merely because a seller says the title is clean.
 
 ## Account and operations configuration
 
-The first database account created through `/api/auth/signup` receives `OWNER`; later accounts receive `USER`. Owners can create invite tokens through `/api/auth/invite`. Configure `CRON_SECRET` and call `POST /api/cron/run` from the hosting scheduler every five minutes to enqueue and process active profiles. Configure `OBJECT_STORAGE_BASE_URL` and `OBJECT_STORAGE_TOKEN` for durable uploads; otherwise uploads use the local development directory and are not a production durability guarantee.
+The first database account created through `/api/auth/signup` receives `OWNER`; later accounts receive `USER`. Owners can create invite tokens through `/api/auth/invite`. Configure `CRON_SECRET` and call `POST /api/cron/run` from the hosting scheduler every five minutes to enqueue and process active profiles. Set `CRON_SCHEDULE_VERIFIED_AT` only after a successful scheduled-run record has been retained; a secret alone does not prove that scheduled jobs are operating. Configure `OBJECT_STORAGE_BASE_URL` and `OBJECT_STORAGE_TOKEN` for durable uploads; otherwise uploads use the local development directory and are not a production durability guarantee.
+
+Set `BACKUP_RESTORE_VERIFIED_AT` only after a real provider-backed backup has been restored into an isolated target and verified. Set `MONITORING_VERIFIED_AT` only after the health signal is connected to an owned monitoring/alert destination and a canary has been observed. These timestamps are explicit release-evidence markers, not substitutes for the underlying runbooks and retained evidence. Uploaded evidence is always returned through `/api/uploads/...`; even when object storage is remote, the application proxy performs the owner check before reading the object.
 
 Configure `EMAIL_API_KEY` or `RESEND_API_KEY` and `EMAIL_FROM` for outbound email. Without them, alerts remain in the in-app inbox and optional webhook path. Set daily `USAGE_*_PER_DAY` ceilings before enabling paid providers.

@@ -4,6 +4,8 @@ export type ProviderHealth = {
   inventory: string;
   jobs: string;
   storage: string;
+  backupRestore: string;
+  monitoring: string;
 };
 
 /**
@@ -18,6 +20,8 @@ export function assessReleaseReadiness(providers: ProviderHealth) {
   if (providers.inventory !== "configured") missing.push("inventory-source");
   if (providers.jobs !== "configured") missing.push("scheduled-jobs");
   if (providers.storage !== "configured") missing.push("object-storage");
+  if (providers.backupRestore !== "configured") missing.push("backup-restore");
+  if (providers.monitoring !== "configured") missing.push("monitoring");
 
   return {
     mode: missing.length === 0 ? "automated" as const : "manual-user-assisted" as const,

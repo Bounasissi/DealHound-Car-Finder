@@ -5,6 +5,8 @@ import { searchProfiles } from "@/db/schema";
 import { runWithAuth } from "@/lib/auth";
 import { claimNextJob, completeJob, enqueueJob, failClaimedJob } from "@/lib/jobs";
 import { syncProfile } from "@/lib/source-sync";
+import { summarizeJobRun } from "@/domain/jobs";
+import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,7 @@ function authorized(req: Request): boolean {
 
 export async function POST(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const startedAt = new Date();
   const workerId = `cron-${crypto.randomUUID()}`;
   const slot = Math.floor(Date.now() / 300_000);
   const activeProfiles = await db.select({ id: searchProfiles.id, ownerId: searchProfiles.ownerId }).from(searchProfiles).where(eq(searchProfiles.active, true));
@@ -36,8 +39,12 @@ export async function POST(req: Request) {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await failClaimedJob(job.id, workerId, job.attempts, job.maxAttempts, message);
-      results.push({ id: job.id, state: job.attempts >= job.maxAttempts ? "FAILED" : "RETRY", error: message });
+      const state = job.attempts >= job.maxAttempts ? "FAILED" : "RETRY";
+      log.error("job.failed", { jobId: job.id, ownerId: job.ownerId, kind: job.kind, state, attempts: job.attempts, error: message });
+      results.push({ id: job.id, state, error: message });
     }
   }
-  return NextResponse.json({ scheduled: activeProfiles.length, processed: results.length, results });
+  const summary = summarizeJobRun(startedAt, new Date(), results);
+  log.info("cron.run.completed", { workerId, scheduled: activeProfiles.length, ...summary });
+  return NextResponse.json({ scheduled: activeProfiles.length, ...summary, results });
 }

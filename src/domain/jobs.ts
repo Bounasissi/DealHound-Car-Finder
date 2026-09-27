@@ -1,5 +1,17 @@
 export type JobState = "QUEUED" | "RUNNING" | "RETRY" | "SUCCEEDED" | "FAILED";
 
+export type JobRunOutcome = { state: string };
+
+export function summarizeJobRun(startedAt: Date, finishedAt: Date, results: JobRunOutcome[]) {
+  return {
+    durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
+    processed: results.length,
+    succeeded: results.filter((result) => result.state === "SUCCEEDED").length,
+    retried: results.filter((result) => result.state === "RETRY").length,
+    failed: results.filter((result) => result.state === "FAILED").length,
+  };
+}
+
 export interface ClaimableJobState {
   state: JobState;
   lockedUntil: Date | null;
