@@ -43,3 +43,7 @@ next-env.d.ts
 # repo-local postgres (scripts/db-*.sh)
 /.pgdata/
 /.pgsock/
+
+# python
+__pycache__/
+*.pyc
